@@ -141,7 +141,7 @@ export default function FooterBlock({ isFull }) {
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={8}>
               <Typography>
-                © KK Trading 0.0.1{' '}
+                © Dhanya Builders 0.0.1{' '}
                 <Link href="#" underline="none">
                   {' '}
                   #

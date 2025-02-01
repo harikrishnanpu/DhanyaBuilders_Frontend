@@ -18,7 +18,7 @@ export default function AuthFooter() {
         textAlign={matchDownSM ? 'center' : 'inherit'}
       >
         <Typography variant="subtitle2" color="secondary">
-          KK Trading 0.0.1{' '}
+          Dhanya Builders 0.0.1{' '}
           <Typography
             component={Link}
             variant="subtitle2"

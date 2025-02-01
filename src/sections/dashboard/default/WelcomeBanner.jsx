@@ -328,7 +328,7 @@ export default function WelcomeBanner() {
               color={theme.palette.background.paper}
               sx={{ mt: 2 }}
             >
-              KK Trading 1.0.0
+              Dhanya Builders 1.0.0
             </Typography>
           </Stack>
         </Grid>

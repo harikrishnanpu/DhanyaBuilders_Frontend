@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Initialize axios instance
 const api = axios.create({
-  baseURL: 'https://kk-back-end.vercel.app/', // https://kktrading-backend.vercel.app/
+  baseURL: 'https://dhanyabuilders-backend.vercel.app/', // https://kktrading-backend.vercel.app/
 });
 
 const userData = JSON.parse(localStorage.getItem('userInfo'));

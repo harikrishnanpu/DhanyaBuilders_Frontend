@@ -10,7 +10,7 @@ import Typography from '@mui/material/Typography';
 export default function Footer() {
   return (
     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: '24px 16px 0px', mt: 'auto' }}>
-      <Typography variant="caption">&copy;  KK Trading 0.0.1</Typography>
+      <Typography variant="caption">&copy;  Dhanya Builders 0.0.1</Typography>
       <Stack spacing={1.5} direction="row" justifyContent="space-between" alignItems="center">
         <Link component={RouterLink} to="/" target="_blank" variant="caption" color="text.primary">
           Home

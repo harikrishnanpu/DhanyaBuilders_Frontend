@@ -178,7 +178,7 @@ export default function SearchBox() {
           sx={{ bgcolor: 'white' }}
         >
           <Typography variant="h6" component="div" className="text-red-600 font-bold">
-            KK TRADING
+            Dhanya Builders
           </Typography>
           {/* Close Button - it will close the Drawer by updating state */}
           <IconButton
