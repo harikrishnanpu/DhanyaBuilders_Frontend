@@ -253,7 +253,7 @@ function RightPanel({ open, onClose, user, projectName }) {
 // MAIN COMPONENT
 export default function ProjectChat({ projectId }) {
   // Example: If your socket server is on localhost:4000
-  const socketServerUrl = 'https://dhanyabuilders-backend.vercel.app/';
+  const socketServerUrl = 'https://web-production-9e20.up.railway.app/';
 
   const { user } = useAuth(); // get user from your auth
   const theme = useTheme();
