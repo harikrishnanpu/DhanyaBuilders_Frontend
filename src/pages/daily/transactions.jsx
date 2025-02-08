@@ -1,52 +1,52 @@
 // DailyTransactions.js
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Paper,
+  Button,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Tabs,
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Snackbar,
+  Alert,
+  Typography,
+  Collapse,
+  useTheme,
+  useMediaQuery,
+} from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import MenuIcon from '@mui/icons-material/Menu';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ShareIcon from '@mui/icons-material/Share';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import CloseIcon from '@mui/icons-material/Close';
+import { Bank } from 'iconsax-react';
 import api from '../api';
 import useAuth from 'hooks/useAuth';
 import { useGetMenuMaster } from 'api/menu';
-import { BrowserView, MobileView } from 'react-device-detect';
-
-const ErrorModal = ({ message, onClose }) => (
-  <div className="fixed inset-0 flex items-center justify-center z-50">
-    <div className="bg-white rounded-md p-4 shadow-lg relative w-11/12 max-w-sm">
-      <button
-        onClick={onClose}
-        className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl"
-      >
-        ×
-      </button>
-      <p className="text-sm text-gray-700">{message}</p>
-    </div>
-  </div>
-);
-
-const SuccessModal = ({ message, onClose }) => (
-  <div className="fixed inset-0 flex items-start justify-center z-50">
-    <div className="bg-green-500 text-white rounded-md p-4 shadow-lg relative w-11/12 max-w-sm mt-8 animate-slide-down">
-      <button
-        onClick={onClose}
-        className="absolute top-2 right-2 text-white hover:text-gray-100 text-xl"
-      >
-        ×
-      </button>
-      <p className="text-sm">{message}</p>
-    </div>
-  </div>
-);
 
 const DailyTransactions = () => {
   const navigate = useNavigate();
   const { user: userInfo } = useAuth();
-
-  // Pull in menuMaster (for drawer states if needed)
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { menuMaster } = useGetMenuMaster();
 
-  // States for transactions from various sources
+  // ------------------------------
+  // STATE VARIABLES
+  // ------------------------------
+  // API data arrays
   const [transactions, setTransactions] = useState([]);
   const [billings, setBillings] = useState([]);
   const [billingPayments, setBillingPayments] = useState([]);
@@ -54,17 +54,16 @@ const DailyTransactions = () => {
   const [otherExpenses, setOtherExpenses] = useState([]);
   const [purchasePayments, setPurchasePayments] = useState([]);
   const [transportPayments, setTransportPayments] = useState([]);
+  const [projectTransactions, setProjectTransactions] = useState([]); // New project transactions
 
   // Categories & Accounts
   const [categories, setCategories] = useState([]);
   const [accounts, setAccounts] = useState([]);
 
-  // Loading & Error
+  // Loading, error & success messages
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Success modal states
-  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [openSuccess, setOpenSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
   // Date filters
@@ -72,7 +71,7 @@ const DailyTransactions = () => {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
 
-  // Active tab: all, in, out, transfer
+  // Tab: all, in, out, transfer
   const [activeTab, setActiveTab] = useState('all');
 
   // Totals
@@ -80,39 +79,9 @@ const DailyTransactions = () => {
   const [totalOut, setTotalOut] = useState(0);
   const [totalTransfer, setTotalTransfer] = useState(0);
 
-  // Add Transaction Modal
+  // Modal (Add Transaction)
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState('in');
-
-  // Sidebar open/close
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const sidebarRef = useRef(null);
-
-  useEffect(() => {
-    // Close sidebar on mobile screens by default
-    if (window.innerWidth < 1024) {
-      setIsSidebarOpen(false);
-    }
-  }, []);
-
-  // Close sidebar when clicking outside of it
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (
-        sidebarRef.current &&
-        !sidebarRef.current.contains(event.target) &&
-        isSidebarOpen
-      ) {
-        setIsSidebarOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isSidebarOpen]);
-
-  // Data for new transaction
+  const [modalType, setModalType] = useState('in'); // "in", "out", or "transfer"
   const [transactionData, setTransactionData] = useState({
     date: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000)
       .toISOString()
@@ -127,20 +96,38 @@ const DailyTransactions = () => {
     purchaseId: '',
     transportId: '',
   });
-
-  // For adding a new category
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
 
-  // Search & Filters & Sorting
+  // Additional filters & sorting (for merging transactions)
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterMethod, setFilterMethod] = useState('');
   const [sortOption, setSortOption] = useState('date_desc');
 
-  // -------------------------------
-  // Fetch Categories
-  // -------------------------------
+  // Collapsible filters panel (inside component)
+  const [showFilters, setShowFilters] = useState(false);
+  const toggleFilters = () => setShowFilters((prev) => !prev);
+
+  // (Optional) local sidebar open/close (if needed)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const sidebarRef = useRef(null);
+  useEffect(() => {
+    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+  }, []);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target) && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSidebarOpen]);
+
+  // ------------------------------
+  // API FETCH FUNCTIONS
+  // ------------------------------
   const fetchCategories = async () => {
     try {
       const catRes = await api.get('/api/daily/transactions/categories');
@@ -150,74 +137,6 @@ const DailyTransactions = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  // -------------------------------
-  // Success Modal Timeout
-  // -------------------------------
-  useEffect(() => {
-    let timer;
-    if (isSuccessOpen) {
-      timer = setTimeout(() => {
-        setIsSuccessOpen(false);
-        setSuccessMessage('');
-      }, 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [isSuccessOpen]);
-
-  // -------------------------------
-  // Generate Report
-  // -------------------------------
-  const handleGenerateReport = async () => {
-    try {
-      // Prepare the current filters and sorting options
-      const reportParams = {
-        fromDate,
-        toDate,
-        activeTab,
-        filterCategory,
-        filterMethod,
-        searchQuery,
-        sortOption,
-      };
-
-      // Prepare the data to send (allTransactions already reflects current filters/sorts)
-      const reportData = allTransactions;
-
-      // Send a POST request to the backend to generate the report
-      const response = await api.post(
-        '/api/print/daily/generate-report',
-        { reportData, reportParams },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          responseType: 'text', // Expecting HTML content as text
-        }
-      );
-
-      // Open a new popup window
-      const reportWindow = window.open('', '_blank', 'width=1200,height=800');
-
-      if (reportWindow) {
-        // Write the received HTML content into the popup window
-        reportWindow.document.write(response.data);
-        reportWindow.document.close();
-      } else {
-        setError('Unable to open popup window. Please allow popups for this website.');
-      }
-    } catch (err) {
-      setError('Failed to generate report.');
-      console.error(err);
-    }
-  };
-
-  // -------------------------------
-  // Fetch All Transactions
-  // -------------------------------
   const fetchTransactions = async () => {
     setLoading(true);
     setError('');
@@ -229,6 +148,7 @@ const DailyTransactions = () => {
         customerPayRes,
         purchaseRes,
         transportRes,
+        projectTransRes,
       ] = await Promise.all([
         api.get('/api/daily/transactions/categories'),
         api.get('/api/daily/transactions', { params: { fromDate, toDate } }),
@@ -236,27 +156,17 @@ const DailyTransactions = () => {
         api.get('/api/customer/daily/payments', { params: { fromDate, toDate } }),
         api.get('/api/seller/daily/payments', { params: { fromDate, toDate } }),
         api.get('/api/transportpayments/daily/payments', { params: { fromDate, toDate } }),
+        api.get('/api/projects/project/all-transactions', { params: { fromDate, toDate } }),
       ]);
 
-      // Billing data
-      const {
-        billingsRes: billingData,
-        payments: paymentData,
-        otherExpenses: expenseData,
-      } = billingRes.data;
-
-      // Customer payments
+      // Process responses
+      const { billingsRes: billingData, payments: billingPaymentsData, otherExpenses: expenseData } = billingRes.data;
       const customerPaymentsData = customerPayRes.data;
-
-      // Mark sources for each transaction type
-      const dailyTransWithSource = dailyTransRes.data.map((t) => ({
-        ...t,
-        source: 'daily',
-      }));
+      const dailyTransWithSource = dailyTransRes.data.map((t) => ({ ...t, source: 'daily' }));
 
       setTransactions(dailyTransWithSource);
       setBillings(billingData);
-      setBillingPayments(paymentData);
+      setBillingPayments(billingPaymentsData);
       setCustomerPayments(
         customerPaymentsData.flatMap((customer) =>
           (customer.payments || []).map((p, index) => ({
@@ -294,15 +204,19 @@ const DailyTransactions = () => {
           }))
         )
       );
+      setProjectTransactions(projectTransRes.data);
+
       setCategories(catRes.data);
 
+      // Calculate totals including project transactions
       calculateTotals(
         dailyTransWithSource,
-        paymentData,
+        billingPaymentsData,
         expenseData,
         customerPaymentsData.flatMap((customer) => customer.payments || []),
         purchaseRes.data.flatMap((seller) => seller.payments || []),
-        transportRes.data.flatMap((transport) => transport.payments || [])
+        transportRes.data.flatMap((transport) => transport.payments || []),
+        projectTransRes.data
       );
     } catch (err) {
       setError('Failed to fetch transactions.');
@@ -312,85 +226,71 @@ const DailyTransactions = () => {
     }
   };
 
-  // -------------------------------
-  // Calculate Totals
-  // -------------------------------
-  const calculateTotals = (
-    transactionsData,
-    billingPaymentsData,
-    expenseData,
-    customerPaymentsData,
-    purchasePaymentsData,
-    transportPaymentsData
-  ) => {
-    let totalInAmount = 0;
-    let totalOutAmount = 0;
-    let totalTransferAmount = 0;
-
-    // Daily transactions (in/out/transfer)
-    transactionsData.forEach((trans) => {
-      const amount = parseFloat(trans.amount) || 0;
-      if (trans.type === 'in') totalInAmount += amount;
-      else if (trans.type === 'out') totalOutAmount += amount;
-      else if (trans.type === 'transfer') totalTransferAmount += amount;
-      // transfer doesn't affect net total in/out
-    });
-
-    // Billing Payments (in)
-    billingPaymentsData.forEach((payment) => {
-      totalInAmount += parseFloat(payment.amount) || 0;
-    });
-
-    // Customer Payments (in)
-    customerPaymentsData.forEach((payment) => {
-      totalInAmount += parseFloat(payment.amount) || 0;
-    });
-
-    // Other Expenses (out)
-    expenseData.forEach((expense) => {
-      totalOutAmount += parseFloat(expense.amount) || 0;
-    });
-
-    // Purchase Payments (out)
-    purchasePaymentsData.forEach((payment) => {
-      totalOutAmount += parseFloat(payment.amount) || 0;
-    });
-
-    // Transport Payments (out)
-    transportPaymentsData.forEach((payment) => {
-      totalOutAmount += parseFloat(payment.amount) || 0;
-    });
-
-    setTotalIn(Number(totalInAmount.toFixed(2)));
-    setTotalOut(Number(totalOutAmount.toFixed(2)));
-    setTotalTransfer(Number(totalTransferAmount.toFixed(2)));
+  const fetchAccounts = async () => {
+    try {
+      const accountsRes = await api.get('/api/accounts/allaccounts');
+      setAccounts(accountsRes.data);
+    } catch (err) {
+      console.error('Failed to fetch accounts:', err);
+    }
   };
 
-  // -------------------------------
-  // On mount, fetch transactions & accounts
-  // -------------------------------
   useEffect(() => {
+    fetchCategories();
     fetchTransactions();
-    const fetchAccounts = async () => {
-      try {
-        const accountsRes = await api.get('/api/accounts/allaccounts');
-        setAccounts(accountsRes.data);
-      } catch (err) {
-        console.error('Failed to fetch accounts:', err);
-      }
-    };
     fetchAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromDate, toDate]);
 
-  // -------------------------------
-  // Tab Handler
-  // -------------------------------
+  // ------------------------------
+  // SUCCESS MODAL TIMEOUT
+  // ------------------------------
+  useEffect(() => {
+    let timer;
+    if (openSuccess) {
+      timer = setTimeout(() => {
+        setOpenSuccess(false);
+        setSuccessMessage('');
+      }, 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [openSuccess]);
+
+  // ------------------------------
+  // ACTION HANDLERS
+  // ------------------------------
+  const handleGenerateReport = async () => {
+    try {
+      const reportParams = {
+        fromDate,
+        toDate,
+        activeTab,
+        filterCategory,
+        filterMethod,
+        searchQuery,
+        sortOption,
+      };
+      const reportData = allTransactions;
+      const response = await api.post(
+        '/api/print/daily/generate-report',
+        { reportData, reportParams },
+        { headers: { 'Content-Type': 'application/json' }, responseType: 'text' }
+      );
+      const reportWindow = window.open('', '_blank', 'width=1200,height=800');
+      if (reportWindow) {
+        reportWindow.document.write(response.data);
+        reportWindow.document.close();
+      } else {
+        setError('Unable to open popup window. Please allow popups for this website.');
+      }
+    } catch (err) {
+      setError('Failed to generate report.');
+      console.error(err);
+    }
+  };
+
   const handleTabChange = (tab) => setActiveTab(tab);
 
-  // -------------------------------
-  // Open/Close Add Transaction Modal
-  // -------------------------------
   const openModal = (type) => {
     setModalType(type);
     setTransactionData({
@@ -418,29 +318,21 @@ const DailyTransactions = () => {
     setError('');
   };
 
-  // -------------------------------
-  // Add Transaction (Submit)
-  // -------------------------------
   const handleTransactionSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    // Basic validation
     if (isNaN(transactionData.amount) || parseFloat(transactionData.amount) <= 0) {
       setError('Please enter a valid amount.');
       return;
     }
-
     if (modalType === 'in' && !transactionData.paymentFrom.trim()) {
       setError('Please enter a payment source.');
       return;
     }
-
     if (modalType === 'out' && !transactionData.paymentTo.trim()) {
       setError('Please enter a payment destination.');
       return;
     }
-
     if (modalType === 'transfer') {
       if (!transactionData.paymentFrom.trim() || !transactionData.paymentTo.trim()) {
         setError('Please select both payment source and destination.');
@@ -451,19 +343,15 @@ const DailyTransactions = () => {
         return;
       }
     }
-
     if (!transactionData.category.trim() && !newCategoryName.trim()) {
       setError('Please select or enter a category.');
       return;
     }
-
     if (!transactionData.method.trim()) {
       setError('Please select a payment method.');
       return;
     }
-
     try {
-      // If adding a new category
       if (showAddCategory) {
         if (!newCategoryName.trim()) {
           setError('Please enter a new category name.');
@@ -473,40 +361,21 @@ const DailyTransactions = () => {
           name: newCategoryName.trim(),
         });
         setCategories([...categories, categoryRes.data]);
-        setTransactionData({
-          ...transactionData,
-          category: categoryRes.data.name,
-        });
+        setTransactionData({ ...transactionData, category: categoryRes.data.name });
       }
-
-      const payload = {
-        ...transactionData,
-        type: modalType,
-        userId: userInfo._id,
-      };
-
-      // Different endpoints if it's a transfer or specific categories
+      const payload = { ...transactionData, type: modalType, userId: userInfo._id };
       if (modalType === 'transfer') {
         await api.post('/api/daily/trans/transfer', payload);
       } else if (transactionData.category === 'Purchase Payment') {
-        // If user explicitly selects "Purchase Payment"
         await api.post('/api/purchases/purchases/payments', payload);
       } else if (transactionData.category === 'Transport Payment') {
-        // If user explicitly selects "Transport Payment"
         await api.post('/api/transport/payments', payload);
       } else {
-        // Regular daily transaction
         await api.post('/api/daily/transactions', payload);
       }
-
-      // Show success modal
       setSuccessMessage('Transaction added successfully!');
-      setIsSuccessOpen(true);
-
-      // Close the Add Transaction modal
+      setOpenSuccess(true);
       closeModal();
-
-      // Refresh
       fetchTransactions();
     } catch (err) {
       setError('Failed to add transaction.');
@@ -514,20 +383,16 @@ const DailyTransactions = () => {
     }
   };
 
-  // -------------------------------
-  // Add a New Category Directly
-  // -------------------------------
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
       setError('Category name cannot be empty.');
       return;
     }
-
     try {
       const response = await api.post('/api/daily/transactions/categories', {
         name: newCategoryName.trim(),
       });
-      setCategories([...categories, response.data]); // Add new category to the list
+      setCategories([...categories, response.data]);
       setTransactionData({ ...transactionData, category: response.data.name });
       setShowAddCategory(false);
       setNewCategoryName('');
@@ -541,15 +406,11 @@ const DailyTransactions = () => {
     }
   };
 
-  // Toggle showAddCategory
   const handleAddNewCategoryToggle = () => {
     setShowAddCategory(!showAddCategory);
     setNewCategoryName('');
   };
 
-  // -------------------------------
-  // Delete Transaction (only from 'daily')
-  // -------------------------------
   const handleDeleteTransaction = async (id) => {
     try {
       await api.delete(`/api/daily/transactions/${id}`);
@@ -560,23 +421,29 @@ const DailyTransactions = () => {
     }
   };
 
-  // -------------------------------
-  // Merge & Filter & Sort All Transactions
-  // -------------------------------
+  // ------------------------------
+  // MERGE, FILTER & SORT TRANSACTIONS
+  // ------------------------------
   const allTransactions = useMemo(() => {
-    // 1) Filter daily transactions by tab
-    let mainFiltered;
-    if (activeTab === 'all') mainFiltered = [...transactions];
-    else mainFiltered = transactions.filter((t) => t.type === activeTab);
-
-    // 2) Build typed arrays from others if tab = all or matches type (in/out).
+    let mainFiltered = [];
+  
+    if (activeTab === 'all') {
+      mainFiltered = [...transactions];
+    } else if (activeTab === 'in') {
+      mainFiltered = transactions.filter((t) => t.type === 'in'); // Exclude transfers
+    } else if (activeTab === 'out') {
+      mainFiltered = transactions.filter((t) => t.type === 'out'); // Exclude transfers
+    } else if (activeTab === 'transfer') {
+      mainFiltered = transactions.filter((t) => t.type === 'transfer');
+    }
+  
     let billingPaymentsFormatted = [];
     let customerPaymentsFormatted = [];
     let expenses = [];
     let pPayments = [];
     let tPayments = [];
-
-    // Billing (always in)
+    let projectTransFormatted = [];
+  
     if (activeTab === 'all' || activeTab === 'in') {
       billingPaymentsFormatted = billingPayments.map((payment, index) => ({
         _id: payment._id || `billing-payment-${index}`,
@@ -590,8 +457,7 @@ const DailyTransactions = () => {
         source: 'billingPayment',
       }));
     }
-
-    // Customer payments (always in)
+  
     if (activeTab === 'all' || activeTab === 'in') {
       customerPaymentsFormatted = customerPayments.map((payment) => ({
         ...payment,
@@ -600,8 +466,7 @@ const DailyTransactions = () => {
         method: payment.method || 'cash',
       }));
     }
-
-    // Other expenses (always out)
+  
     if (activeTab === 'all' || activeTab === 'out') {
       expenses = otherExpenses.map((expense) => ({
         ...expense,
@@ -612,8 +477,7 @@ const DailyTransactions = () => {
         remark: expense.remark || 'Additional expense',
       }));
     }
-
-    // Purchase payments (always out)
+  
     if (activeTab === 'all' || activeTab === 'out') {
       pPayments = purchasePayments.map((payment) => ({
         ...payment,
@@ -624,8 +488,7 @@ const DailyTransactions = () => {
         remark: payment.remark || 'Payment towards purchase',
       }));
     }
-
-    // Transport payments (always out)
+  
     if (activeTab === 'all' || activeTab === 'out') {
       tPayments = transportPayments.map((payment) => ({
         ...payment,
@@ -636,8 +499,23 @@ const DailyTransactions = () => {
         remark: payment.remark || 'Payment towards transport',
       }));
     }
-
-    // 3) Combine all
+  
+    if (activeTab === 'all' || activeTab === 'transfer') {
+      projectTransFormatted = projectTransactions
+        .filter((t) => t.type === 'transfer') // Only include transfers for 'all' & 'transfer'
+        .map((t) => ({
+          _id: t._id,
+          date: t.date,
+          amount: t.amount,
+          type: t.type,
+          paymentFrom: t.paymentFrom,
+          paymentTo: t.paymentMethod, 
+          category: t.paymentCategory || 'Project Transaction',
+          remark: t.remarks,
+          source: 'projectTransaction',
+        }));
+    }
+  
     let combined = [
       ...mainFiltered,
       ...billingPaymentsFormatted,
@@ -645,29 +523,28 @@ const DailyTransactions = () => {
       ...expenses,
       ...pPayments,
       ...tPayments,
+      ...projectTransFormatted, // Only in 'all' and 'transfer'
     ];
-
-    // 4) Remove duplicates based on _id
+  
     const uniqueMap = new Map();
     combined.forEach((item) => {
-      if (!uniqueMap.has(item._id)) {
-        uniqueMap.set(item._id, item);
-      }
+      if (!uniqueMap.has(item._id)) uniqueMap.set(item._id, item);
     });
-
+  
     let filtered = [...uniqueMap.values()];
-
-    // 5) Apply additional filters (category, method, search)
+  
     if (filterCategory) {
       filtered = filtered.filter(
         (t) => t.category && t.category.toLowerCase() === filterCategory.toLowerCase()
       );
     }
+  
     if (filterMethod) {
       filtered = filtered.filter(
         (t) => t.method && t.method.toLowerCase() === filterMethod.toLowerCase()
       );
     }
+  
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -678,28 +555,27 @@ const DailyTransactions = () => {
           (t.category && t.category.toLowerCase().includes(q))
       );
     }
-
-    // 6) Sorting
+  
     filtered.sort((a, b) => {
       const dateA = new Date(a.date);
       const dateB = new Date(b.date);
       const amountA = parseFloat(a.amount) || 0;
       const amountB = parseFloat(b.amount) || 0;
-
+  
       switch (sortOption) {
         case 'date_desc':
-          return dateB - dateA; // latest first
+          return dateB - dateA;
         case 'date_asc':
-          return dateA - dateB; // oldest first
+          return dateA - dateB;
         case 'amount_asc':
-          return amountA - amountB; // low -> high
+          return amountA - amountB;
         case 'amount_desc':
-          return amountB - amountA; // high -> low
+          return amountB - amountA;
         default:
           return dateB - dateA;
       }
     });
-
+  
     return filtered;
   }, [
     transactions,
@@ -708,642 +584,562 @@ const DailyTransactions = () => {
     otherExpenses,
     purchasePayments,
     transportPayments,
+    projectTransactions,
     activeTab,
     searchQuery,
     filterCategory,
     filterMethod,
     sortOption,
   ]);
+  
 
-  // -------------------------------
-  // Render
-  // -------------------------------
+  // Prepare rows for DataGrid (each row must have an id property)
+  const rows = allTransactions.map((item) => ({ ...item, id: item._id }));
+
+  // ------------------------------
+  // TOTALS CALCULATION (including project transactions)
+  // ------------------------------
+  const calculateTotals = (
+    transactionsData,
+    billingPaymentsData,
+    expenseData,
+    customerPaymentsData,
+    purchasePaymentsData,
+    transportPaymentsData,
+    projectTransData
+  ) => {
+    let totalInAmount = 0;
+    let totalOutAmount = 0;
+    let totalTransferAmount = 0;
+
+    // Daily transactions (in/out/transfer)
+    transactionsData.forEach((trans) => {
+      const amt = parseFloat(trans.amount) || 0;
+      if (trans.type === 'in') totalInAmount += amt;
+      else if (trans.type === 'out') totalOutAmount += amt;
+      else if (trans.type === 'transfer') totalTransferAmount += amt;
+    });
+    // Billing Payments (in)
+    billingPaymentsData.forEach((payment) => {
+      totalInAmount += parseFloat(payment.amount) || 0;
+    });
+    // Customer Payments (in)
+    customerPaymentsData.forEach((payment) => {
+      totalInAmount += parseFloat(payment.amount) || 0;
+    });
+    // Other Expenses (out)
+    expenseData.forEach((expense) => {
+      totalOutAmount += parseFloat(expense.amount) || 0;
+    });
+    // Purchase Payments (out)
+    purchasePaymentsData.forEach((payment) => {
+      totalOutAmount += parseFloat(payment.amount) || 0;
+    });
+    // Transport Payments (out)
+    transportPaymentsData.forEach((payment) => {
+      totalOutAmount += parseFloat(payment.amount) || 0;
+    });
+    // Project Transactions
+    projectTransData.forEach((trans) => {
+      const amt = parseFloat(trans.amount) || 0;
+      if (trans.type === 'in') totalInAmount += amt;
+      else if (trans.type === 'out') totalOutAmount += amt;
+      else if (trans.type === 'transfer') totalTransferAmount += amt;
+    });
+
+    setTotalIn(Number(totalInAmount.toFixed(2)));
+    setTotalOut(Number(totalOutAmount.toFixed(2)));
+    setTotalTransfer(Number(totalTransferAmount.toFixed(2)));
+  };
+
+  // ------------------------------
+  // RENDER
+  // ------------------------------
   return (
-    <>
-      {/* Error Modal */}
-      {error && <ErrorModal message={error} onClose={() => setError('')} />}
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2, boxSizing: 'border-box' }}>
+      {/* Top Action Bar */}
 
-      {/* Success Modal */}
-      {isSuccessOpen && (
-        <SuccessModal message={successMessage} onClose={() => setIsSuccessOpen(false)} />
-      )}
-
-      {/* Main Container */}
-      <div className="flex lg:flex-row flex-col">
-        {/* Sidebar */}
-        <div
-          ref={sidebarRef}
-          className={`fixed inset-y-0 h-screen ${isSidebarOpen && 'pt-16'} rounded-md left-0 transform bg-white shadow-md w-64 z-40 transition-transform duration-300 ease-in-out
-            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            lg:translate-x-0 lg:static`}
-        >
-          <div className="p-4">
-            <div className="flex  items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-gray-800">Filters</h2>
-              {/* Hide the hamburger in large screens since the sidebar is always open there */}
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="block lg:hidden text-gray-500 hover:text-gray-700 text-xl"
-                title="Close Sidebar"
+      {/* Collapsible Filters Panel */}
+      <Collapse in={showFilters} timeout="auto" unmountOnExit>
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <TextField
+              label="From Date"
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ flex: '1 1 150px' }}
+            />
+            <TextField
+              label="To Date"
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ flex: '1 1 150px' }}
+            />
+            <FormControl sx={{ flex: '1 1 150px' }}>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={filterCategory}
+                label="Category"
+                onChange={(e) => setFilterCategory(e.target.value)}
               >
-                ×
-              </button>
-            </div>
-
-            {/* Filters Section */}
-            <div className="flex flex-col gap-4">
-              <div>
-                <label className="text-xs font-bold mb-1 block">From Date</label>
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500 w-full"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold mb-1 block">To Date</label>
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500 w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1">Category</label>
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500 w-full"
-                >
-                  <option value="">All</option>
-                  {categories.map((cat, index) => (
-                    <option key={index} value={cat.name}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1">Method</label>
-                <select
-                  value={filterMethod}
-                  onChange={(e) => setFilterMethod(e.target.value)}
-                  className="border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500 w-full"
-                >
-                  <option value="">All</option>
-                  {accounts.map((acc, index) => (
-                    <option key={index} value={acc.accountId}>
-                      {acc.accountName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1">Search</label>
-                <input
-                  type="text"
-                  placeholder="Search remarks/source..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500 w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1">Sort By</label>
-                <select
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value)}
-                  className="border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500 w-full"
-                >
-                  <option value="date_desc">Date (Latest First)</option>
-                  <option value="date_asc">Date (Oldest First)</option>
-                  <option value="amount_asc">Amount (Low to High)</option>
-                  <option value="amount_desc">Amount (High to Low)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side (Main Content) */}
-        <div className="flex-1 p-4 transition-all duration-300">
-          {/* Top bar with optional toggle (hamburger) for mobile */}
-          <div className="flex items-center justify-between mb-2 lg:hidden">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="text-gray-700 hover:text-gray-900"
-              title="Toggle Sidebar"
-            >
-              <i className="fa fa-bars text-xl"></i>
-            </button>
-            <h1 className="text-sm font-bold text-gray-700">Daily Transactions</h1>
-          </div>
-
-          {/* Totals Section */}
-          <div className="flex space-x-4 p-2 rounded-lg">
-            <div className="flex-1 bg-green-100 text-green-700 p-3 rounded-lg text-center">
-              <p className="text-xs font-semibold">Payment In</p>
-              <p className="text-md font-bold">₹ {totalIn.toFixed(2)}</p>
-            </div>
-            <div className="flex-1 bg-red-100 text-red-700 p-3 rounded-lg text-center">
-              <p className="text-xs font-semibold">Payment Out</p>
-              <p className="text-md font-bold">₹ {totalOut.toFixed(2)}</p>
-            </div>
-            <div className="flex-1 bg-blue-100 text-blue-700 p-3 rounded-lg text-center">
-              <p className="text-xs font-semibold">Total Transfers</p>
-              <p className="text-md font-bold">₹ {totalTransfer.toFixed(2)}</p>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex justify-center p-2 rounded-lg">
-            <div className="flex space-x-2 bg-gray-100 p-1 rounded-full">
-              <button
-                onClick={() => handleTabChange('all')}
-                className={`px-4 py-1 text-xs rounded-full font-semibold ${
-                  activeTab === 'all' ? 'bg-white text-red-600 shadow-md' : 'text-gray-600'
-                }`}
-              >
-                All Payments
-              </button>
-              <button
-                onClick={() => handleTabChange('in')}
-                className={`px-4 py-1 text-xs rounded-full font-semibold ${
-                  activeTab === 'in' ? 'bg-white text-red-600 shadow-md' : 'text-gray-600'
-                }`}
-              >
-                Payment In
-              </button>
-              <button
-                onClick={() => handleTabChange('out')}
-                className={`px-4 py-1 text-xs rounded-full font-semibold ${
-                  activeTab === 'out' ? 'bg-white text-red-600 shadow-md' : 'text-gray-600'
-                }`}
-              >
-                Payment Out
-              </button>
-              <button
-                onClick={() => handleTabChange('transfer')}
-                className={`px-4 py-1 text-xs rounded-full font-semibold ${
-                  activeTab === 'transfer' ? 'bg-white text-red-600 shadow-md' : 'text-gray-600'
-                }`}
-              >
-                Transfer
-              </button>
-            </div>
-          </div>
-
-          {/* Transactions List */}
-          <div className="p-4 mb-20">
-            {loading ? (
-              <div className="space-y-2">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-12 bg-gray-200 animate-pulse rounded-lg"></div>
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                {categories.map((cat, index) => (
+                  <MenuItem key={index} value={cat.name}>{cat.name}</MenuItem>
                 ))}
-              </div>
-            ) : (
-              <>
-                {allTransactions.length === 0 ? (
-                  <p className="text-center text-gray-500 text-xs">
-                    No transactions found for the selected criteria.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {allTransactions.map((trans) => {
-                      const dateObj = new Date(trans.date);
-                      const isDaily = trans.source === 'daily'; // only daily transactions can be deleted
-
-                      return (
-                        <div
-                          key={trans._id}
-                          className="flex justify-between items-center p-2 bg-white shadow-sm rounded-lg"
-                        >
-                          <div>
-                            <p className="text-xs font-bold text-gray-700">{trans.category}</p>
-                            <p className="text-xs text-gray-500">
-                              {trans.type === 'in'
-                                ? `From: ${trans.paymentFrom}`
-                                : trans.type === 'out'
-                                ? `To: ${trans.paymentTo}`
-                                : trans.type === 'transfer'
-                                ? `Transfer: ${trans.paymentFrom} ➜ ${trans.paymentTo}`
-                                : ''}
-                            </p>
-                            <p className="text-xs text-gray-500 italic">{trans.remark}</p>
-                          </div>
-                          <div className="text-right">
-                            {trans.type === 'in' && (
-                              <p className="text-sm font-bold text-green-600">
-                                +₹{parseFloat(trans.amount).toFixed(2)}
-                              </p>
-                            )}
-                            {trans.type === 'out' && (
-                              <p className="text-sm font-bold text-red-600">
-                                -₹{parseFloat(trans.amount).toFixed(2)}
-                              </p>
-                            )}
-                            {trans.type === 'transfer' && (
-                              <p className="text-sm font-bold text-blue-600">
-                                ₹{parseFloat(trans.amount).toFixed(2)}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-500">
-                              {dateObj.toLocaleString(undefined, {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                            {isDaily && (
-                              <button
-                                onClick={() => handleDeleteTransaction(trans._id)}
-                                className="ml-3 text-red-500 hover:text-red-700 text-xs"
-                                title="Delete Transaction"
-                              >
-                                <i className="fa fa-trash"></i>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Bottom Fixed Actions Bar (unified for all screens) */}
-          <div
-            style={{
-              zIndex: 100,
-              // If one drawer is open, shift accordingly; else full width
-              left: menuMaster.isDashboardDrawerOpened
-                ? '280px'
-                : menuMaster.isComponentDrawerOpened
-                ? '80px'
-                : '0px',
-              width: menuMaster.isDashboardDrawerOpened
-                ? 'calc(100% - 280px)'
-                : menuMaster.isComponentDrawerOpened
-                ? 'calc(100% - 80px)'
-                : '100%',
-            }}
-            className="fixed bottom-0 shadow-inner bg-white p-2 flex justify-around border-t"
-          >
-            <button
-              onClick={() => openModal('in')}
-              className="flex font-bold items-center justify-center bg-green-500 text-white w-12 h-12 rounded-full shadow-lg hover:bg-green-600 transition"
-              title="Add Payment In"
+              </Select>
+            </FormControl>
+            <FormControl sx={{ flex: '1 1 150px' }}>
+              <InputLabel>Method</InputLabel>
+              <Select
+                value={filterMethod}
+                label="Method"
+                onChange={(e) => setFilterMethod(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                {accounts.map((acc, index) => (
+                  <MenuItem key={index} value={acc.accountId}>{acc.accountName}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ flex: '1 1 150px' }}
+            />
+            <FormControl sx={{ flex: '1 1 150px' }}>
+              <InputLabel>Sort By</InputLabel>
+              <Select
+                value={sortOption}
+                label="Sort By"
+                onChange={(e) => setSortOption(e.target.value)}
+              >
+                <MenuItem value="date_desc">Date (Latest First)</MenuItem>
+                <MenuItem value="date_asc">Date (Oldest First)</MenuItem>
+                <MenuItem value="amount_asc">Amount (Low to High)</MenuItem>
+                <MenuItem value="amount_desc">Amount (High to Low)</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, gap: 1 }}>
+            <Button variant="outlined" onClick={fetchTransactions}>
+              Apply Filters
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setFromDate(today);
+                setToDate(today);
+                setFilterCategory('');
+                setFilterMethod('');
+                setSearchQuery('');
+              }}
             >
-              +
-            </button>
+              Reset
+            </Button>
+          </Box>
+        </Paper>
+      </Collapse>
 
-            <button
-              onClick={() => openModal('transfer')}
-              className="flex font-bold items-center justify-center bg-blue-500 text-white w-12 h-12 rounded-full shadow-lg hover:bg-blue-600 transition"
-              title="Transfer Between Accounts"
-            >
-              <i className="fa fa-share" />
-            </button>
+      {/* Tabs for Payment Type */}
+      <Paper sx={{ mb: 2 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(e, newVal) => handleTabChange(newVal)}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="fullWidth"
+        >
+          <Tab label="All Payments" value="all" />
+          <Tab label="Payment In" value="in" />
+          <Tab label="Payment Out" value="out" />
+          <Tab label="Transfer" value="transfer" />
+        </Tabs>
+      </Paper>
 
-            <button
-              onClick={() => openModal('out')}
-              className="flex font-bold items-center justify-center bg-red-500 text-white w-12 h-12 rounded-full shadow-lg hover:bg-red-600 transition"
-              title="Add Payment Out"
-            >
-              -
-            </button>
+      {/* Totals */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+        <Paper sx={{ flex: 1, p: 2, textAlign: 'center' }}>
+          <Typography variant="subtitle2">Payment In</Typography>
+          <Typography variant="h6" color="green">₹ {totalIn.toFixed(2)}</Typography>
+        </Paper>
+        <Paper sx={{ flex: 1, p: 2, textAlign: 'center' }}>
+          <Typography variant="subtitle2">Payment Out</Typography>
+          <Typography variant="h6" color="red">₹ {totalOut.toFixed(2)}</Typography>
+        </Paper>
+        <Paper sx={{ flex: 1, p: 2, textAlign: 'center' }}>
+          <Typography variant="subtitle2">Total Transfers</Typography>
+          <Typography variant="h6" color="blue">₹ {totalTransfer.toFixed(2)}</Typography>
+        </Paper>
+      </Box>
 
-            {/* Generate Report Button */}
-            <button
-              onClick={handleGenerateReport}
-              className="flex font-bold items-center justify-center bg-red-500 text-white w-12 h-12 rounded-full shadow-lg hover:bg-red-600 transition"
-              title="Generate Report"
-            >
-              <i className="fa fa-file-pdf"></i>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Transactions Data Table */}
+      <Paper sx={{ flex: 1, p: 2, mb: 10, height: 'calc(100% - 400px)' }}>
+        {loading ? (
+          <Typography variant="h6" align="center">Loading...</Typography>
+        ) : allTransactions.length === 0 ? (
+          <Typography variant="body2" align="center" color="textSecondary">
+            No transactions found for the selected criteria.
+          </Typography>
+        ) : (
+          <DataGrid
+          rows={rows}
+          columns={[
+            {
+              field: 'date',
+              headerName: 'Date',
+              width: 160,
+              renderCell: (params) => new Date(params.value).toLocaleString(),
+            },
+            { field: 'category', headerName: 'Category', width: 150 },
+            {
+              field: 'paymentFrom',
+              headerName: 'From',
+              width: 150,
+              renderCell: (params) => {
+                // Look up the account name based on the accountId from the "accounts" array
+                const account = accounts.find(acc => acc.accountId === params.value);
+                return account ? account.accountName : params.value;
+              },
+            },
+            {
+              field: 'paymentTo',
+              headerName: 'To',
+              width: 150,
+              renderCell: (params) => {
+                // Look up the account name based on the accountId from the "accounts" array
+                const account = accounts.find(acc => acc.accountId === params.value);
+                return account ? account.accountName : params.value;
+              },
+            },
+            {
+              field: 'amount',
+              headerName: 'Amount',
+              width: 120,
+              renderCell: (params) => (
+                <Typography
+                  color={
+                    params.row.type === 'in'
+                      ? 'green'
+                      : params.row.type === 'out'
+                      ? 'red'
+                      : 'blue'
+                  }
+                >
+                  {params.row.type === 'in'
+                    ? `+₹${parseFloat(params.value).toFixed(2)}`
+                    : params.row.type === 'out'
+                    ? `-₹${parseFloat(params.value).toFixed(2)}`
+                    : `₹${parseFloat(params.value).toFixed(2)}`}
+                </Typography>
+              ),
+            },
+            { field: 'remark', headerName: 'Remark', width: 200 },
+            {
+              field: 'actions',
+              headerName: 'Actions',
+              width: 100,
+              sortable: false,
+              renderCell: (params) => {
+                return params.row.source === 'daily' ? (
+                  <IconButton color="error" onClick={() => handleDeleteTransaction(params.row._id)}>
+                    <DeleteIcon />
+                  </IconButton>
+                ) : null;
+              },
+            },
+          ]}
+          pageSize={10}
+          rowsPerPageOptions={[10, 20, 50]}
+          disableSelectionOnClick
+          autoHeight
+          sx={{ border: 0, '& .MuiDataGrid-cell': { py: 1 } }}
+        />
+        
+        )}
+      </Paper>
 
-      {/* Add Transaction Modal */}
-    
-{isModalOpen && (
-  <div className="fixed inset-0 bg-black bg-opacity-5 flex justify-center lg:items-center items-end z-50">
-    <div
-      className={`bg-white w-full lg:max-w-lg p-4 rounded-t-lg lg:rounded-lg sm:rounded-t-lg shadow-lg relative transition-all duration-300
-        ${window.innerWidth < 1024 ? 'h-3/4' : ''}
-      `}
-      style={{
-        width:
-          menuMaster.isDashboardDrawerOpened
+      {/* Fixed Bottom Actions Bar */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 0,
+          left: isMobile
+            ? 0
+            : menuMaster.isDashboardDrawerOpened
+            ? '280px'
+            : menuMaster.isComponentDrawerOpened
+            ? '80px'
+            : 0,
+          width: isMobile
+            ? '100%'
+            : menuMaster.isDashboardDrawerOpened
             ? 'calc(100% - 280px)'
             : menuMaster.isComponentDrawerOpened
             ? 'calc(100% - 80px)'
             : '100%',
-      }}
-    >
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-sm font-bold">
-                {modalType === 'in'
-                  ? 'Add Payment In'
-                  : modalType === 'out'
-                  ? 'Add Payment Out'
-                  : 'Transfer Between Accounts'}
-              </h2>
-              <button
-                onClick={closeModal}
-                className="text-gray-500 hover:text-gray-700 text-xl"
-              >
-                ×
-              </button>
-            </div>
-            <form onSubmit={handleTransactionSubmit}>
-              {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
-              <div className="mb-2">
-                <label className="block text-xs font-bold mb-1">Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={transactionData.date}
-                  onChange={(e) =>
-                    setTransactionData({ ...transactionData, date: e.target.value })
-                  }
-                  className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                  required
-                />
-              </div>
+          bgcolor: 'background.paper',
+          p: 1,
+          display: 'flex',
+          justifyContent: 'space-around',
+          borderTop: 1,
+          borderColor: 'divider',
+          boxShadow: 3,
+          zIndex: 100,
+        }}
+      >
+        <Button
+          onClick={() => openModal('in')}
+          variant="outlined"
+          color="success"
+          sx={{ minWidth: 56, minHeight: 58, borderRadius: '50%' }}
+          title="Add Payment In"
+        >
+          +
+        </Button>
+        <Button
+          onClick={() => openModal('transfer')}
+          variant="outlined"
+          color="primary"
+          sx={{ minWidth: 56, minHeight: 58, borderRadius: '50%' }}
+          title="Transfer Between Accounts"
+        >
+          <Bank />
+        </Button>
+        <Button
+          onClick={() => openModal('out')}
+          variant="outlined"
+          color="error"
+          sx={{ minWidth: 56, minHeight: 58, borderRadius: '50%' }}
+          title="Add Payment Out"
+        >
+          –
+        </Button>
+        <Button
+          onClick={handleGenerateReport}
+          variant="outlined"
+          color="secondary"
+          sx={{ minWidth: 56, minHeight: 58, borderRadius: '50%' }}
+          title="Generate Report"
+        >
+          <FileDownloadIcon />
+        </Button>
+      </Box>
 
-              {/* Payment From (for IN or TRANSFER) */}
-              {(modalType === 'in' || modalType === 'transfer') && (
-                <div className="mb-2">
-                  <label className="block text-xs font-bold mb-1">Payment From</label>
-                  {modalType === 'in' ? (
-                    <input
-                      type="text"
-                      value={transactionData.paymentFrom}
-                      onChange={(e) =>
-                        setTransactionData({
-                          ...transactionData,
-                          paymentFrom: e.target.value,
-                        })
-                      }
-                      className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                      required
-                    />
-                  ) : (
-                    <select
-                      value={transactionData.paymentFrom}
-                      onChange={(e) =>
-                        setTransactionData({
-                          ...transactionData,
-                          paymentFrom: e.target.value,
-                        })
-                      }
-                      className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                      required
-                    >
-                      <option value="">Select Account</option>
-                      {accounts.map((account, index) => (
-                        <option key={index} value={account.accountId}>
-                          {account.accountName}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
-
-              {/* Payment To (for OUT or TRANSFER) */}
-              {(modalType === 'out' || modalType === 'transfer') && (
-                <div className="mb-2">
-                  <label className="block text-xs font-bold mb-1">Payment To</label>
-                  {modalType === 'out' ? (
-                    <input
-                      type="text"
-                      value={transactionData.paymentTo}
-                      onChange={(e) =>
-                        setTransactionData({
-                          ...transactionData,
-                          paymentTo: e.target.value,
-                        })
-                      }
-                      className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                      required
-                    />
-                  ) : (
-                    <select
-                      value={transactionData.paymentTo}
-                      onChange={(e) =>
-                        setTransactionData({
-                          ...transactionData,
-                          paymentTo: e.target.value,
-                        })
-                      }
-                      className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                      required
-                    >
-                      <option value="">Select Account</option>
-                      {accounts.map((account, index) => (
-                        <option key={index} value={account.accountId}>
-                          {account.accountName}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
-
-              {/* Category */}
-              <div className="mb-2">
-                <label className="block text-xs font-bold mb-1">Category</label>
-                {!showAddCategory ? (
-                  <select
-                    value={transactionData.category}
-                    onChange={(e) => {
-                      if (e.target.value === 'add_new_category') {
-                        setShowAddCategory(true);
-                      } else {
-                        setTransactionData({ ...transactionData, category: e.target.value });
-                      }
-                    }}
-                    className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                    required
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map((cat, index) => (
-                      <option key={index} value={cat.name}>
-                        {cat.name}
-                      </option>
-                    ))}
-                    <option value="add_new_category">Add New Category</option>
-                  </select>
-                ) : (
-                  <div>
-                    <input
-                      type="text"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="Enter new category"
-                      className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500 mb-2"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddCategory}
-                      className="bg-green-500 text-white px-3 py-1 rounded-md text-xs hover:bg-green-600 transition-colors duration-200"
-                    >
-                      Save Category
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Conditional selects for Purchase/Transport Payment */}
-              {modalType === 'out' && transactionData.category === 'Purchase Payment' && (
-                <div className="mb-2">
-                  <label className="block text-xs font-bold mb-1">Purchase</label>
-                  <select
-                    value={transactionData.purchaseId || ''}
-                    onChange={(e) =>
-                      setTransactionData({ ...transactionData, purchaseId: e.target.value })
+      {/* Add Transaction Modal */}
+      <Dialog open={isModalOpen} onClose={closeModal} fullWidth maxWidth="sm">
+        <DialogTitle>
+          {modalType === 'in'
+            ? 'Add Payment In'
+            : modalType === 'out'
+            ? 'Add Payment Out'
+            : 'Transfer Between Accounts'}
+          <IconButton
+            aria-label="close"
+            onClick={closeModal}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+          <Box component="form" onSubmit={handleTransactionSubmit} sx={{ mt: 1 }}>
+            <TextField
+              label="Date & Time"
+              type="datetime-local"
+              fullWidth
+              value={transactionData.date}
+              onChange={(e) =>
+                setTransactionData({ ...transactionData, date: e.target.value })
+              }
+              InputLabelProps={{ shrink: true }}
+              sx={{ mb: 2 }}
+              required
+            />
+            {(modalType === 'in' || modalType === 'transfer') && (
+              <TextField
+                label="Payment From"
+                fullWidth
+                value={transactionData.paymentFrom}
+                onChange={(e) =>
+                  setTransactionData({ ...transactionData, paymentFrom: e.target.value })
+                }
+                sx={{ mb: 2 }}
+                required
+              />
+            )}
+            {(modalType === 'out' || modalType === 'transfer') && (
+              <TextField
+                label="Payment To"
+                fullWidth
+                value={transactionData.paymentTo}
+                onChange={(e) =>
+                  setTransactionData({ ...transactionData, paymentTo: e.target.value })
+                }
+                sx={{ mb: 2 }}
+                required
+              />
+            )}
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Category</InputLabel>
+              {!showAddCategory ? (
+                <Select
+                  value={transactionData.category}
+                  label="Category"
+                  onChange={(e) => {
+                    if (e.target.value === 'add_new_category') {
+                      setShowAddCategory(true);
+                    } else {
+                      setTransactionData({ ...transactionData, category: e.target.value });
                     }
-                    className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                    required
-                  >
-                    <option value="">Select Purchase</option>
-                    {purchasePayments.map((purchase, index) => (
-                      <option key={index} value={purchase._id}>
-                        {purchase.invoiceNo} - {purchase.sellerName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {modalType === 'out' && transactionData.category === 'Transport Payment' && (
-                <div className="mb-2">
-                  <label className="block text-xs font-bold mb-1">Transport</label>
-                  <select
-                    value={transactionData.transportId || ''}
-                    onChange={(e) =>
-                      setTransactionData({ ...transactionData, transportId: e.target.value })
-                    }
-                    className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                    required
-                  >
-                    <option value="">Select Transport</option>
-                    {transportPayments.map((transport, index) => (
-                      <option key={index} value={transport._id}>
-                        {transport.transportName} -{' '}
-                        {new Date(transport.transportDate).toLocaleDateString()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Amount */}
-              <div className="mb-2">
-                <label className="block text-xs font-bold mb-1">Amount</label>
-                <input
-                  type="number"
-                  value={transactionData.amount}
-                  onChange={(e) =>
-                    setTransactionData({ ...transactionData, amount: e.target.value })
-                  }
-                  className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                  required
-                  min="0.01"
-                  step="0.01"
-                  placeholder="Enter amount in Rs."
-                />
-              </div>
-
-              {/* Payment Method */}
-              <div className="mb-2">
-                <label className="block text-xs font-bold mb-1">Payment Method</label>
-                <select
-                  value={transactionData.method}
-                  onChange={(e) =>
-                    setTransactionData({ ...transactionData, method: e.target.value })
-                  }
-                  className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
+                  }}
                   required
                 >
-                  <option value="">Select Method</option>
-                  {accounts.map((account, index) => (
-                    <option key={index} value={account.accountId}>
-                      {account.accountName}
-                    </option>
+                  <MenuItem value="">
+                    <em>Select Category</em>
+                  </MenuItem>
+                  {categories.map((cat, index) => (
+                    <MenuItem key={index} value={cat.name}>
+                      {cat.name}
+                    </MenuItem>
                   ))}
-                  {/* In case "cash" is not in the DB */}
-                </select>
-              </div>
-
-              {/* Remark */}
-              <div className="mb-2">
-                <label className="block text-xs font-bold mb-1">Remark</label>
-                <textarea
-                  value={transactionData.remark}
+                  <MenuItem value="add_new_category">Add New Category</MenuItem>
+                </Select>
+              ) : (
+                <Box>
+                  <TextField
+                    label="New Category"
+                    fullWidth
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    sx={{ mb: 1 }}
+                  />
+                  <Button variant="outlined" onClick={handleAddCategory}>
+                    Save Category
+                  </Button>
+                </Box>
+              )}
+            </FormControl>
+            {modalType === 'out' && transactionData.category === 'Purchase Payment' && (
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Purchase</InputLabel>
+                <Select
+                  value={transactionData.purchaseId || ''}
+                  label="Purchase"
                   onChange={(e) =>
-                    setTransactionData({ ...transactionData, remark: e.target.value })
+                    setTransactionData({ ...transactionData, purchaseId: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-md p-1 text-xs focus:ring-red-500 focus:border-red-500"
-                  rows="2"
-                  placeholder="Optional remarks"
-                ></textarea>
-              </div>
-
-              <div className="flex justify-end mt-4">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md mr-2 text-xs hover:bg-gray-300 transition-colors duration-200"
+                  required
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-red-500 text-white px-3 py-1 rounded-md text-xs hover:bg-red-600 transition-colors duration-200"
+                  <MenuItem value="">
+                    <em>Select Purchase</em>
+                  </MenuItem>
+                  {purchasePayments.map((purchase, index) => (
+                    <MenuItem key={index} value={purchase._id}>
+                      {purchase.invoiceNo} - {purchase.sellerName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            {modalType === 'out' && transactionData.category === 'Transport Payment' && (
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Transport</InputLabel>
+                <Select
+                  value={transactionData.transportId || ''}
+                  label="Transport"
+                  onChange={(e) =>
+                    setTransactionData({ ...transactionData, transportId: e.target.value })
+                  }
+                  required
                 >
-                  Add Transaction
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                  <MenuItem value="">
+                    <em>Select Transport</em>
+                  </MenuItem>
+                  {transportPayments.map((transport, index) => (
+                    <MenuItem key={index} value={transport._id}>
+                      {transport.transportName} - {new Date(transport.transportDate).toLocaleDateString()}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            <TextField
+              label="Amount"
+              type="number"
+              fullWidth
+              value={transactionData.amount}
+              onChange={(e) =>
+                setTransactionData({ ...transactionData, amount: e.target.value })
+              }
+              inputProps={{ min: '0.01', step: '0.01' }}
+              sx={{ mb: 2 }}
+              required
+              placeholder="Enter amount in Rs."
+            />
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Payment Method</InputLabel>
+              <Select
+                value={transactionData.method}
+                label="Payment Method"
+                onChange={(e) =>
+                  setTransactionData({ ...transactionData, method: e.target.value })
+                }
+                required
+              >
+                <MenuItem value="">
+                  <em>Select Method</em>
+                </MenuItem>
+                {accounts.map((account, index) => (
+                  <MenuItem key={index} value={account.accountId}>
+                    {account.accountName}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Remark"
+              fullWidth
+              multiline
+              rows={3}
+              value={transactionData.remark}
+              onChange={(e) =>
+                setTransactionData({ ...transactionData, remark: e.target.value })
+              }
+              sx={{ mb: 2 }}
+              placeholder="Optional remarks"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeModal} color="secondary">Cancel</Button>
+          <Button onClick={handleTransactionSubmit} variant="outlined" color="primary">
+            Add Transaction
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* Tailwind Animations */}
-      <style jsx>{`
-        @keyframes slide-up {
-          from {
-            transform: translateY(100%);
-          }
-          to {
-            transform: translateY(0%);
-          }
-        }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-        @keyframes slide-down {
-          from {
-            transform: translateY(-100%);
-          }
-          to {
-            transform: translateY(0%);
-          }
-        }
-        .animate-slide-down {
-          animation: slide-down 0.3s ease-out;
-        }
-      `}</style>
-    </>
+      {/* Snackbars for Error and Success */}
+      <Snackbar open={Boolean(error)} autoHideDuration={3000} onClose={() => setError('')}>
+        <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+      </Snackbar>
+      <Snackbar open={openSuccess} autoHideDuration={3000} onClose={() => setOpenSuccess(false)}>
+        <Alert severity="success" onClose={() => setOpenSuccess(false)}>{successMessage}</Alert>
+      </Snackbar>
+    </Box>
   );
 };
 

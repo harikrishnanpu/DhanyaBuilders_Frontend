@@ -218,7 +218,7 @@ export default function Breadcrumbs({
       breadcrumbContent = (
         <MainCard
           border={card}
-          sx={card === false ? { mb: 3, bgcolor: 'transparent', ...sx } : { mb: 3, ...sx }}
+          sx={card === false ? { mb: 3,ml: 4, mt: 2 , bgcolor: 'transparent', ...sx } : { mb: 3, ...sx }}
           {...others}
           content={card}
           boxShadow={false}

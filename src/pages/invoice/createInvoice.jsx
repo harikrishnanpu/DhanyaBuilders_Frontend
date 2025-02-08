@@ -18,6 +18,8 @@ import { openSnackbar } from 'api/snackbar';
 
 export default function BillingScreen() {
   const navigate = useNavigate();
+  const isMobile = window.innerWidth < 768;
+
 
   // Billing Information States
   const [invoiceNo, setInvoiceNo] = useState('');
@@ -1652,16 +1654,16 @@ export default function BillingScreen() {
                 <div
   style={{
     zIndex: 100,
-    left: menuMaster.isDashboardDrawerOpened
-      ? '280px' : 'auto' ||
-       menuMaster.isComponentDrawerOpened
-      ? '80px'
-      : 'auto',
-    width: menuMaster.isDashboardDrawerOpened
-      ? 'calc(100% - 280px)' : '100%' ||
-     menuMaster.isComponentDrawerOpened
-      ? 'calc(100% - 80px)'
-      : '100%',
+    left: isMobile ? '0' : menuMaster.isDashboardDrawerOpened
+    ? '280px'
+    : menuMaster.isComponentDrawerOpened
+    ? '80px'
+    : '0px',
+  width: isMobile ? '100%' : menuMaster.isDashboardDrawerOpened
+    ? 'calc(100% - 280px)'
+    : menuMaster.isComponentDrawerOpened
+    ? 'calc(100% - 80px)'
+    : '100%',
   }}
   className="fixed bottom-0 right-0 bg-white px-4 pt-4 pb-4 border-t shadow-inner"
 >              <div className="flex justify-between">

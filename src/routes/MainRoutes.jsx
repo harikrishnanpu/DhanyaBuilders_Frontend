@@ -102,6 +102,10 @@ const AdminEstimate = Loadable(lazy(() => import('pages/adminEstimate/dashboard'
 
 const Notifications = Loadable(lazy(() => import('pages/notifications/notifications')));
 
+const CreateProject = Loadable(lazy(() => import('pages/project/createProject')));
+const ProjectDetails = Loadable(lazy(() => import('pages/project/projectDetails')));
+const AllProjects = Loadable(lazy(() => import('pages/project/allProjects')));
+
 // ==============================|| MAIN ROUTES ||============================== //
 
 const MainRoutes = {
@@ -484,6 +488,27 @@ const MainRoutes = {
           element: <Notifications />
         }
       ]
+    },
+
+    {
+
+      path: '/project',
+      element: <DashboardLayout />,
+      children: [
+        {
+        path: 'create',
+        element: <CreateProject />
+        },
+        {
+          path: ':id',
+          element: <ProjectDetails />
+        },
+        {
+          path: 'all',
+          element: <AllProjects />
+        },
+      ]
+
     },
 
 
