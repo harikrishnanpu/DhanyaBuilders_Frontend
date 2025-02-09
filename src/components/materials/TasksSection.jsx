@@ -37,7 +37,7 @@ import TaskListView from './task/TaskListView';
 import TaskDialog from './task/TaskDialog';
 import ActivityTimeline from './task/ActivityTimeline';
 
-/** 
+/**
  * Slide transition from the top for notifications.
  */
 function SlideDownTransition(props) {
@@ -49,12 +49,12 @@ export default function TasksSection({ projectId }) {
   const { tasks, loading, fetchTasks, createTask, updateTask, deleteTask } = useTasksApi(projectId);
   const { notifications, notify } = useNotifications();
 
-  // Theme and responsive hook
+  // Theme and responsive hook.
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // UI State
-  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list', or 'timeline'
+  // UI State.
+  const [viewMode, setViewMode] = useState('grid'); // Options: 'grid', 'list', 'timeline'
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [filterParams, setFilterParams] = useState({
     searchText: '',
@@ -72,6 +72,7 @@ export default function TasksSection({ projectId }) {
     if (projectId) {
       fetchTasks();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   // Filter and sort tasks whenever tasks, filterParams, or sortOption changes.
@@ -178,11 +179,11 @@ export default function TasksSection({ projectId }) {
   const handleExportTasks = () => {
     if (tasks && tasks.length > 0) {
       const dataStr = JSON.stringify(tasks, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/pdf' });
+      const blob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'tasks.pdf';
+      link.download = 'tasks.json';
       link.click();
       URL.revokeObjectURL(url);
     } else {
@@ -238,7 +239,7 @@ export default function TasksSection({ projectId }) {
           elevation={3}
           sx={{
             mb: 2,
-            p: 2,
+            p: isMobile ? 2 : 3,
             borderRadius: 2,
             backgroundColor: theme.palette.background.paper,
           }}
@@ -247,16 +248,16 @@ export default function TasksSection({ projectId }) {
             direction={{ xs: 'column', sm: 'row' }}
             alignItems={{ xs: 'flex-start', sm: 'center' }}
             justifyContent="space-between"
-            spacing={2}
+            spacing={isMobile ? 1 : 2}
           >
             <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight="bold">
               Tasks
             </Typography>
-            <Stack direction="row" alignItems="center" spacing={1}>
+            <Stack direction="row" alignItems="center" spacing={isMobile ? 0.5 : 1}>
               <TaskFilters onFilterChange={handleFilterChange} />
               <Button
                 variant="text"
-                size="small"
+                size={isMobile ? 'small' : 'medium'}
                 onClick={() =>
                   setFilterParams({
                     searchText: '',
@@ -273,7 +274,7 @@ export default function TasksSection({ projectId }) {
                 onChange={(e) => setSortOption(e.target.value)}
                 size="small"
                 variant="outlined"
-                sx={{ minWidth: 150 }}
+                sx={{ minWidth: isMobile ? 120 : 150 }}
               >
                 <MenuItem value="Recent">Most Recent</MenuItem>
                 <MenuItem value="Oldest">Oldest</MenuItem>
@@ -281,13 +282,13 @@ export default function TasksSection({ projectId }) {
                 <MenuItem value="Priority Low to High">Priority Low to High</MenuItem>
               </Select>
               <Tooltip title="Refresh Tasks">
-                <IconButton onClick={fetchTasks} color="primary">
-                  <RefreshIcon />
+                <IconButton onClick={fetchTasks} color="primary" size={isMobile ? 'small' : 'medium'}>
+                  <RefreshIcon fontSize={isMobile ? 'small' : 'medium'} />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Export Tasks">
-                <IconButton onClick={handleExportTasks} color="primary">
-                  <DownloadIcon />
+                <IconButton onClick={handleExportTasks} color="primary" size={isMobile ? 'small' : 'medium'}>
+                  <DownloadIcon fontSize={isMobile ? 'small' : 'medium'} />
                 </IconButton>
               </Tooltip>
             </Stack>
@@ -299,7 +300,7 @@ export default function TasksSection({ projectId }) {
           elevation={1}
           sx={{
             mb: 2,
-            p: 2,
+            p: isMobile ? 1.5 : 2,
             borderRadius: 2,
             backgroundColor: theme.palette.background.default,
             display: 'flex',
@@ -314,7 +315,7 @@ export default function TasksSection({ projectId }) {
             value={viewMode}
             exclusive
             onChange={handleChangeViewMode}
-            size="small"
+            size={isMobile ? 'small' : 'medium'}
             sx={{
               backgroundColor: theme.palette.background.paper,
               borderRadius: 2,
@@ -322,17 +323,17 @@ export default function TasksSection({ projectId }) {
           >
             <ToggleButton value="grid">
               <Tooltip title="Grid View">
-                <GridOnIcon fontSize="small" />
+                <GridOnIcon fontSize={isMobile ? 'small' : 'medium'} />
               </Tooltip>
             </ToggleButton>
             <ToggleButton value="list">
               <Tooltip title="List View">
-                <ListIcon fontSize="small" />
+                <ListIcon fontSize={isMobile ? 'small' : 'medium'} />
               </Tooltip>
             </ToggleButton>
             <ToggleButton value="timeline">
               <Tooltip title="Timeline View">
-                <TimelineIcon fontSize="small" />
+                <TimelineIcon fontSize={isMobile ? 'small' : 'medium'} />
               </Tooltip>
             </ToggleButton>
           </ToggleButtonGroup>
@@ -349,7 +350,7 @@ export default function TasksSection({ projectId }) {
               <Paper
                 elevation={3}
                 sx={{
-                  p: 2,
+                  p: isMobile ? 2 : 3,
                   borderRadius: 2,
                   minHeight: 300,
                   backgroundColor: theme.palette.background.paper,

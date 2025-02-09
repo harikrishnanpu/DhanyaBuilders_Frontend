@@ -1,4 +1,3 @@
-// src/components/materials/modals/AddUsedMaterialModal.jsx
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -17,12 +16,12 @@ import MaterialSearchModal from './MaterialSearchModal';
 import api from 'pages/api';
 import useAuth from 'hooks/useAuth';
 
-// Transition component to slide the modal from the bottom.
+// Slide transition from bottom.
 const Transition = React.forwardRef((props, ref) => (
   <Slide direction="up" ref={ref} {...props} />
 ));
 
-const AddUsedMaterialModal = ({ projectId, date, onClose, open }) => {
+export default function AddUsedMaterialModal({ projectId, date, onClose, open }) {
   const [items, setItems] = useState([]);
   const [showMaterialSearchModal, setShowMaterialSearchModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,56 +29,50 @@ const AddUsedMaterialModal = ({ projectId, date, onClose, open }) => {
   const { user: userInfo } = useAuth();
 
   // Add Material to Items
-  const handleAddMaterial = (material) => {
-    const existingItem = items.find(
-      (item) => item.material._id === material._id
-    );
-    if (existingItem) {
+  const handleAddMaterial = (mat) => {
+    // Check if it's already added
+    const existing = items.find((i) => i.material._id === mat._id);
+    if (existing) {
       alert('Material already added.');
       return;
     }
-    setItems([
-      ...items,
-      {
-        material: material,
-        quantity: 1,
-      },
-    ]);
+    setItems([...items, { material: mat, quantity: 1 }]);
   };
 
-  // Handle Quantity Change
-  const handleQuantityChange = (index, quantity) => {
-    const updatedItems = [...items];
-    updatedItems[index].quantity = Number(quantity);
-    setItems(updatedItems);
+  // Quantity changed
+  const handleQuantityChange = (idx, val) => {
+    const updated = [...items];
+    updated[idx].quantity = Number(val);
+    setItems(updated);
   };
 
-  // Submit Used Materials
+  // Remove an item
+  const handleRemoveItem = (idx) => {
+    setItems(items.filter((_, i) => i !== idx));
+  };
+
+  // Submit used materials
   const handleSubmit = async () => {
-    if (items.length === 0) {
+    if (!items.length) {
       alert('Please add at least one material.');
       return;
     }
     setLoading(true);
     try {
-      const formattedItems = items.map((item) => ({
-        material: item.material._id,
-        quantity: item.quantity,
+      const formattedItems = items.map((it) => ({
+        material: it.material._id,
+        quantity: it.quantity,
       }));
-
       await api.post(`/api/projects/project/add-used/${projectId}`, {
         date,
         items: formattedItems,
         userId: userInfo._id,
       });
-
-      alert('Used materials added.');
+      alert('Used materials added successfully.');
       onClose();
-    } catch (error) {
-      console.error('Error adding used materials:', error);
-      alert(
-        `Error adding used materials: ${error.response?.data?.message || error.message}`
-      );
+    } catch (err) {
+      console.error('Error adding used materials:', err);
+      alert(`Error: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -94,7 +87,6 @@ const AddUsedMaterialModal = ({ projectId, date, onClose, open }) => {
         keepMounted
         fullWidth
         maxWidth="sm"
-        // Position the modal at the bottom with rounded top corners.
         PaperProps={{
           style: {
             margin: 0,
@@ -130,84 +122,71 @@ const AddUsedMaterialModal = ({ projectId, date, onClose, open }) => {
               InputProps={{
                 readOnly: true,
               }}
-              variant="outlined"
-              sx={{
-                backgroundColor: '#f5f5f5',
-              }}
             />
           </Box>
 
-          {/* Materials Items */}
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle1" sx={{ mb: 1 }}>
-              Materials
-            </Typography>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => setShowMaterialSearchModal(true)}
-              sx={{ mb: 2 }}
+          {/* Items */}
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            Materials
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={() => setShowMaterialSearchModal(true)}
+            sx={{ mb: 2 }}
+          >
+            + Add Material
+          </Button>
+
+          {items.map((it, idx) => (
+            <Box
+              key={it.material._id}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                mb: 2,
+                p: 1,
+                border: '1px solid #ccc',
+                borderRadius: 1,
+              }}
             >
-              + Add Material
-            </Button>
-            {items.map((item, index) => (
-              <Box
-                key={item.material._id}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  mb: 2,
-                  p: 1,
-                  border: '1px solid #ccc',
-                  borderRadius: 1,
-                }}
-              >
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="body2">
-                    {item.material.name} ({item.material.unit})
-                  </Typography>
-                </Box>
-                <TextField
-                  type="number"
-                  label="Qty"
-                  value={item.quantity}
-                  onChange={(e) => handleQuantityChange(index, e.target.value)}
-                  InputProps={{ inputProps: { min: 1 } }}
-                  size="small"
-                  sx={{ width: 80, mr: 1 }}
-                />
-                <Button
-                  variant="text"
-                  color="error"
-                  onClick={() =>
-                    setItems(items.filter((_, idx) => idx !== index))
-                  }
-                >
-                  Remove
-                </Button>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="body2">
+                  {it.material.name} ({it.material.unit})
+                </Typography>
               </Box>
-            ))}
-          </Box>
+              <TextField
+                type="number"
+                label="Qty"
+                value={it.quantity}
+                onChange={(e) => handleQuantityChange(idx, e.target.value)}
+                size="small"
+                sx={{ width: 80, mr: 1 }}
+              />
+              <Button variant="text" color="error" onClick={() => handleRemoveItem(idx)}>
+                Remove
+              </Button>
+            </Box>
+          ))}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button
-            onClick={handleSubmit}
             variant="outlined"
             color="success"
             fullWidth
             disabled={loading}
+            onClick={handleSubmit}
           >
             {loading ? 'Adding...' : 'Add Used Materials'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Material Search Modal */}
+      {/* Material Search */}
       {showMaterialSearchModal && (
         <MaterialSearchModal
           open={showMaterialSearchModal}
-          onAdd={(material) => {
-            handleAddMaterial(material);
+          onAdd={(selected) => {
+            handleAddMaterial(selected);
             setShowMaterialSearchModal(false);
           }}
           onClose={() => setShowMaterialSearchModal(false)}
@@ -215,6 +194,4 @@ const AddUsedMaterialModal = ({ projectId, date, onClose, open }) => {
       )}
     </>
   );
-};
-
-export default AddUsedMaterialModal;
+}

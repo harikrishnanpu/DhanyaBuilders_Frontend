@@ -2,15 +2,14 @@
 import { FormattedMessage } from 'react-intl';
 
 // assets
-import {  } from 'iconsax-react';
-import { Construction } from '@mui/icons-material';
+import { Home3 } from 'iconsax-react';
 
 // type
 
 // icons
 // icons
 const icons = {
-  project:  Construction,
+  project:  Home3,
 };
 
 // ==============================|| MENU ITEMS - PAGES ||============================== //

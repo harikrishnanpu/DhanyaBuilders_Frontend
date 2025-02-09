@@ -54,7 +54,7 @@ const DailyTransactions = () => {
   const [otherExpenses, setOtherExpenses] = useState([]);
   const [purchasePayments, setPurchasePayments] = useState([]);
   const [transportPayments, setTransportPayments] = useState([]);
-  const [projectTransactions, setProjectTransactions] = useState([]); // New project transactions
+  const [projectTransactions, setProjectTransactions] = useState([]); // Project transactions
 
   // Categories & Accounts
   const [categories, setCategories] = useState([]);
@@ -99,17 +99,17 @@ const DailyTransactions = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
 
-  // Additional filters & sorting (for merging transactions)
+  // Additional filters & sorting
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterMethod, setFilterMethod] = useState('');
   const [sortOption, setSortOption] = useState('date_desc');
 
-  // Collapsible filters panel (inside component)
+  // Collapsible filters panel
   const [showFilters, setShowFilters] = useState(false);
   const toggleFilters = () => setShowFilters((prev) => !prev);
 
-  // (Optional) local sidebar open/close (if needed)
+  // Sidebar open/close (if needed)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const sidebarRef = useRef(null);
   useEffect(() => {
@@ -128,15 +128,6 @@ const DailyTransactions = () => {
   // ------------------------------
   // API FETCH FUNCTIONS
   // ------------------------------
-  const fetchCategories = async () => {
-    try {
-      const catRes = await api.get('/api/daily/transactions/categories');
-      setCategories(catRes.data);
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-    }
-  };
-
   const fetchTransactions = async () => {
     setLoading(true);
     setError('');
@@ -160,13 +151,17 @@ const DailyTransactions = () => {
       ]);
 
       // Process responses
-      const { billingsRes: billingData, payments: billingPaymentsData, otherExpenses: expenseData } = billingRes.data;
-      const customerPaymentsData = customerPayRes.data;
+      const { billingsRes: billingData, payments: billingPaymentsData, otherExpenses: expenseData } =
+        billingRes.data;
+
+      const customerPaymentsData = customerPayRes.data || [];
+
       const dailyTransWithSource = dailyTransRes.data.map((t) => ({ ...t, source: 'daily' }));
 
       setTransactions(dailyTransWithSource);
       setBillings(billingData);
       setBillingPayments(billingPaymentsData);
+
       setCustomerPayments(
         customerPaymentsData.flatMap((customer) =>
           (customer.payments || []).map((p, index) => ({
@@ -177,6 +172,7 @@ const DailyTransactions = () => {
           }))
         )
       );
+
       setOtherExpenses(
         expenseData.map((exp, index) => ({
           ...exp,
@@ -184,6 +180,7 @@ const DailyTransactions = () => {
           _id: exp._id || `expense-${index}`,
         }))
       );
+
       setPurchasePayments(
         purchaseRes.data.flatMap((seller) =>
           (seller.payments || []).map((p, index) => ({
@@ -194,6 +191,7 @@ const DailyTransactions = () => {
           }))
         )
       );
+
       setTransportPayments(
         transportRes.data.flatMap((transport) =>
           (transport.payments || []).map((p, index) => ({
@@ -204,11 +202,12 @@ const DailyTransactions = () => {
           }))
         )
       );
+
       setProjectTransactions(projectTransRes.data);
 
       setCategories(catRes.data);
 
-      // Calculate totals including project transactions
+      // Recalculate totals
       calculateTotals(
         dailyTransWithSource,
         billingPaymentsData,
@@ -236,7 +235,6 @@ const DailyTransactions = () => {
   };
 
   useEffect(() => {
-    fetchCategories();
     fetchTransactions();
     fetchAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,21 +319,23 @@ const DailyTransactions = () => {
   const handleTransactionSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Basic validations
     if (isNaN(transactionData.amount) || parseFloat(transactionData.amount) <= 0) {
       setError('Please enter a valid amount.');
       return;
     }
     if (modalType === 'in' && !transactionData.paymentFrom.trim()) {
-      setError('Please enter a payment source.');
+      setError('Please enter a payment source (From).');
       return;
     }
     if (modalType === 'out' && !transactionData.paymentTo.trim()) {
-      setError('Please enter a payment destination.');
+      setError('Please enter a payment destination (To).');
       return;
     }
     if (modalType === 'transfer') {
       if (!transactionData.paymentFrom.trim() || !transactionData.paymentTo.trim()) {
-        setError('Please select both payment source and destination.');
+        setError('Please select both Payment From and Payment To for Transfer.');
         return;
       }
       if (transactionData.paymentFrom.trim() === transactionData.paymentTo.trim()) {
@@ -351,7 +351,9 @@ const DailyTransactions = () => {
       setError('Please select a payment method.');
       return;
     }
+
     try {
+      // If adding a new category on the fly:
       if (showAddCategory) {
         if (!newCategoryName.trim()) {
           setError('Please enter a new category name.');
@@ -360,25 +362,35 @@ const DailyTransactions = () => {
         const categoryRes = await api.post('/api/daily/transactions/categories', {
           name: newCategoryName.trim(),
         });
+        // Update local categories
         setCategories([...categories, categoryRes.data]);
+        // Assign newly created category to transaction
         setTransactionData({ ...transactionData, category: categoryRes.data.name });
       }
+
       const payload = { ...transactionData, type: modalType, userId: userInfo._id };
+
+      // Depending on category, we might post to different endpoints
       if (modalType === 'transfer') {
+        // Transfer Endpoint
         await api.post('/api/daily/trans/transfer', payload);
       } else if (transactionData.category === 'Purchase Payment') {
+        // Special logic for purchase payments
         await api.post('/api/purchases/purchases/payments', payload);
       } else if (transactionData.category === 'Transport Payment') {
+        // Special logic for transport payments
         await api.post('/api/transport/payments', payload);
       } else {
+        // Normal daily transactions
         await api.post('/api/daily/transactions', payload);
       }
+
       setSuccessMessage('Transaction added successfully!');
       setOpenSuccess(true);
       closeModal();
-      fetchTransactions();
+      fetchTransactions(); // Refresh data
     } catch (err) {
-      setError('Failed to add transaction.');
+      setError('Failed to add transaction. Please check console for details.');
       console.error(err);
     }
   };
@@ -425,25 +437,20 @@ const DailyTransactions = () => {
   // MERGE, FILTER & SORT TRANSACTIONS
   // ------------------------------
   const allTransactions = useMemo(() => {
+    // 1) Filter main daily transactions by activeTab
     let mainFiltered = [];
-  
     if (activeTab === 'all') {
       mainFiltered = [...transactions];
     } else if (activeTab === 'in') {
-      mainFiltered = transactions.filter((t) => t.type === 'in'); // Exclude transfers
+      mainFiltered = transactions.filter((t) => t.type === 'in');
     } else if (activeTab === 'out') {
-      mainFiltered = transactions.filter((t) => t.type === 'out'); // Exclude transfers
+      mainFiltered = transactions.filter((t) => t.type === 'out');
     } else if (activeTab === 'transfer') {
       mainFiltered = transactions.filter((t) => t.type === 'transfer');
     }
-  
+
+    // 2) Format billing payments (always 'in' for now)
     let billingPaymentsFormatted = [];
-    let customerPaymentsFormatted = [];
-    let expenses = [];
-    let pPayments = [];
-    let tPayments = [];
-    let projectTransFormatted = [];
-  
     if (activeTab === 'all' || activeTab === 'in') {
       billingPaymentsFormatted = billingPayments.map((payment, index) => ({
         _id: payment._id || `billing-payment-${index}`,
@@ -457,7 +464,9 @@ const DailyTransactions = () => {
         source: 'billingPayment',
       }));
     }
-  
+
+    // 3) Format customer payments (always 'in' for now)
+    let customerPaymentsFormatted = [];
     if (activeTab === 'all' || activeTab === 'in') {
       customerPaymentsFormatted = customerPayments.map((payment) => ({
         ...payment,
@@ -466,7 +475,9 @@ const DailyTransactions = () => {
         method: payment.method || 'cash',
       }));
     }
-  
+
+    // 4) Expenses (always 'out')
+    let expenses = [];
     if (activeTab === 'all' || activeTab === 'out') {
       expenses = otherExpenses.map((expense) => ({
         ...expense,
@@ -477,7 +488,9 @@ const DailyTransactions = () => {
         remark: expense.remark || 'Additional expense',
       }));
     }
-  
+
+    // 5) Purchase Payments (always 'out')
+    let pPayments = [];
     if (activeTab === 'all' || activeTab === 'out') {
       pPayments = purchasePayments.map((payment) => ({
         ...payment,
@@ -488,7 +501,9 @@ const DailyTransactions = () => {
         remark: payment.remark || 'Payment towards purchase',
       }));
     }
-  
+
+    // 6) Transport Payments (always 'out')
+    let tPayments = [];
     if (activeTab === 'all' || activeTab === 'out') {
       tPayments = transportPayments.map((payment) => ({
         ...payment,
@@ -499,23 +514,32 @@ const DailyTransactions = () => {
         remark: payment.remark || 'Payment towards transport',
       }));
     }
-  
-    if (activeTab === 'all' || activeTab === 'transfer') {
+
+    // 7) Project Transactions (in/out/transfer)
+    let projectTransFormatted = [];
+    if (projectTransactions && projectTransactions.length) {
       projectTransFormatted = projectTransactions
-        .filter((t) => t.type === 'transfer') // Only include transfers for 'all' & 'transfer'
-        .map((t) => ({
-          _id: t._id,
+        .filter((pt) => {
+          if (activeTab === 'all') return true; // include all
+          if (activeTab === 'in') return pt.type === 'in';
+          if (activeTab === 'out') return pt.type === 'out';
+          if (activeTab === 'transfer') return pt.type === 'transfer';
+          return false;
+        })
+        .map((t, index) => ({
+          _id: t._id || `project-trans-${index}`,
           date: t.date,
           amount: t.amount,
           type: t.type,
           paymentFrom: t.paymentFrom,
-          paymentTo: t.paymentMethod, 
+          paymentTo: t.paymentMethod,
           category: t.paymentCategory || 'Project Transaction',
-          remark: t.remarks,
+          remark: t.remarks || '',
           source: 'projectTransaction',
         }));
     }
-  
+
+    // Merge everything
     let combined = [
       ...mainFiltered,
       ...billingPaymentsFormatted,
@@ -523,28 +547,35 @@ const DailyTransactions = () => {
       ...expenses,
       ...pPayments,
       ...tPayments,
-      ...projectTransFormatted, // Only in 'all' and 'transfer'
+      ...projectTransFormatted,
     ];
-  
+
+    // Remove duplicates if any
     const uniqueMap = new Map();
     combined.forEach((item) => {
-      if (!uniqueMap.has(item._id)) uniqueMap.set(item._id, item);
+      if (!uniqueMap.has(item._id)) {
+        uniqueMap.set(item._id, item);
+      }
     });
-  
+
+    // Convert back to array
     let filtered = [...uniqueMap.values()];
-  
+
+    // Filter by category
     if (filterCategory) {
       filtered = filtered.filter(
         (t) => t.category && t.category.toLowerCase() === filterCategory.toLowerCase()
       );
     }
-  
+
+    // Filter by method
     if (filterMethod) {
       filtered = filtered.filter(
         (t) => t.method && t.method.toLowerCase() === filterMethod.toLowerCase()
       );
     }
-  
+
+    // Search by From/To/Remark/Category
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -555,13 +586,14 @@ const DailyTransactions = () => {
           (t.category && t.category.toLowerCase().includes(q))
       );
     }
-  
+
+    // Sort
     filtered.sort((a, b) => {
       const dateA = new Date(a.date);
       const dateB = new Date(b.date);
       const amountA = parseFloat(a.amount) || 0;
       const amountB = parseFloat(b.amount) || 0;
-  
+
       switch (sortOption) {
         case 'date_desc':
           return dateB - dateA;
@@ -575,7 +607,7 @@ const DailyTransactions = () => {
           return dateB - dateA;
       }
     });
-  
+
     return filtered;
   }, [
     transactions,
@@ -591,13 +623,12 @@ const DailyTransactions = () => {
     filterMethod,
     sortOption,
   ]);
-  
 
-  // Prepare rows for DataGrid (each row must have an id property)
+  // Prepare rows for DataGrid
   const rows = allTransactions.map((item) => ({ ...item, id: item._id }));
 
   // ------------------------------
-  // TOTALS CALCULATION (including project transactions)
+  // TOTALS CALCULATION
   // ------------------------------
   const calculateTotals = (
     transactionsData,
@@ -612,34 +643,40 @@ const DailyTransactions = () => {
     let totalOutAmount = 0;
     let totalTransferAmount = 0;
 
-    // Daily transactions (in/out/transfer)
+    // Daily transactions
     transactionsData.forEach((trans) => {
       const amt = parseFloat(trans.amount) || 0;
       if (trans.type === 'in') totalInAmount += amt;
       else if (trans.type === 'out') totalOutAmount += amt;
       else if (trans.type === 'transfer') totalTransferAmount += amt;
     });
-    // Billing Payments (in)
+
+    // Billing (in)
     billingPaymentsData.forEach((payment) => {
       totalInAmount += parseFloat(payment.amount) || 0;
     });
-    // Customer Payments (in)
+
+    // Customer payments (in)
     customerPaymentsData.forEach((payment) => {
       totalInAmount += parseFloat(payment.amount) || 0;
     });
-    // Other Expenses (out)
+
+    // Other expenses (out)
     expenseData.forEach((expense) => {
       totalOutAmount += parseFloat(expense.amount) || 0;
     });
-    // Purchase Payments (out)
+
+    // Purchase payments (out)
     purchasePaymentsData.forEach((payment) => {
       totalOutAmount += parseFloat(payment.amount) || 0;
     });
-    // Transport Payments (out)
+
+    // Transport payments (out)
     transportPaymentsData.forEach((payment) => {
       totalOutAmount += parseFloat(payment.amount) || 0;
     });
-    // Project Transactions
+
+    // Project transactions
     projectTransData.forEach((trans) => {
       const amt = parseFloat(trans.amount) || 0;
       if (trans.type === 'in') totalInAmount += amt;
@@ -656,10 +693,18 @@ const DailyTransactions = () => {
   // RENDER
   // ------------------------------
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2, boxSizing: 'border-box' }}>
-      {/* Top Action Bar */}
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2 }}>
+      {/* Toggle Filters */}
+      <Button
+        onClick={toggleFilters}
+        variant="outlined"
+        startIcon={<MenuIcon />}
+        sx={{ mb: 2, alignSelf: 'flex-start' }}
+      >
+        {showFilters ? 'Hide Filters' : 'Show Filters'}
+      </Button>
 
-      {/* Collapsible Filters Panel */}
+      {/* Collapsible Filters */}
       <Collapse in={showFilters} timeout="auto" unmountOnExit>
         <Paper sx={{ p: 2, mb: 2 }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
@@ -690,7 +735,9 @@ const DailyTransactions = () => {
                   <em>All</em>
                 </MenuItem>
                 {categories.map((cat, index) => (
-                  <MenuItem key={index} value={cat.name}>{cat.name}</MenuItem>
+                  <MenuItem key={index} value={cat.name}>
+                    {cat.name}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -705,7 +752,9 @@ const DailyTransactions = () => {
                   <em>All</em>
                 </MenuItem>
                 {accounts.map((acc, index) => (
-                  <MenuItem key={index} value={acc.accountId}>{acc.accountName}</MenuItem>
+                  <MenuItem key={index} value={acc.accountId}>
+                    {acc.accountName}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -729,6 +778,7 @@ const DailyTransactions = () => {
               </Select>
             </FormControl>
           </Box>
+
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, gap: 1 }}>
             <Button variant="outlined" onClick={fetchTransactions}>
               Apply Filters
@@ -749,7 +799,7 @@ const DailyTransactions = () => {
         </Paper>
       </Collapse>
 
-      {/* Tabs for Payment Type */}
+      {/* Tabs: All / In / Out / Transfer */}
       <Paper sx={{ mb: 2 }}>
         <Tabs
           value={activeTab}
@@ -769,105 +819,119 @@ const DailyTransactions = () => {
       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
         <Paper sx={{ flex: 1, p: 2, textAlign: 'center' }}>
           <Typography variant="subtitle2">Payment In</Typography>
-          <Typography variant="h6" color="green">₹ {totalIn.toFixed(2)}</Typography>
+          <Typography variant="h6" color="green">
+            ₹ {totalIn.toFixed(2)}
+          </Typography>
         </Paper>
         <Paper sx={{ flex: 1, p: 2, textAlign: 'center' }}>
           <Typography variant="subtitle2">Payment Out</Typography>
-          <Typography variant="h6" color="red">₹ {totalOut.toFixed(2)}</Typography>
+          <Typography variant="h6" color="red">
+            ₹ {totalOut.toFixed(2)}
+          </Typography>
         </Paper>
         <Paper sx={{ flex: 1, p: 2, textAlign: 'center' }}>
           <Typography variant="subtitle2">Total Transfers</Typography>
-          <Typography variant="h6" color="blue">₹ {totalTransfer.toFixed(2)}</Typography>
+          <Typography variant="h6" color="blue">
+            ₹ {totalTransfer.toFixed(2)}
+          </Typography>
         </Paper>
       </Box>
 
-      {/* Transactions Data Table */}
+      {/* Transactions Table */}
       <Paper sx={{ flex: 1, p: 2, mb: 10, height: 'calc(100% - 400px)' }}>
         {loading ? (
-          <Typography variant="h6" align="center">Loading...</Typography>
+          <Typography variant="h6" align="center">
+            Loading...
+          </Typography>
         ) : allTransactions.length === 0 ? (
           <Typography variant="body2" align="center" color="textSecondary">
             No transactions found for the selected criteria.
           </Typography>
         ) : (
           <DataGrid
-          rows={rows}
-          columns={[
-            {
-              field: 'date',
-              headerName: 'Date',
-              width: 160,
-              renderCell: (params) => new Date(params.value).toLocaleString(),
-            },
-            { field: 'category', headerName: 'Category', width: 150 },
-            {
-              field: 'paymentFrom',
-              headerName: 'From',
-              width: 150,
-              renderCell: (params) => {
-                // Look up the account name based on the accountId from the "accounts" array
-                const account = accounts.find(acc => acc.accountId === params.value);
-                return account ? account.accountName : params.value;
+            rows={rows}
+            columns={[
+              {
+                field: 'date',
+                headerName: 'Date',
+                width: 160,
+                renderCell: (params) => new Date(params.value).toLocaleString(),
               },
-            },
-            {
-              field: 'paymentTo',
-              headerName: 'To',
-              width: 150,
-              renderCell: (params) => {
-                // Look up the account name based on the accountId from the "accounts" array
-                const account = accounts.find(acc => acc.accountId === params.value);
-                return account ? account.accountName : params.value;
+              { field: 'category', headerName: 'Category', width: 150 },
+              {
+                field: 'paymentFrom',
+                headerName: 'From',
+                width: 150,
+                renderCell: (params) => {
+                  // If the field is an account ID, try to show the accountName
+                  const account = accounts.find((acc) => acc.accountId === params.value);
+                  return account ? account.accountName : params.value;
+                },
               },
-            },
-            {
-              field: 'amount',
-              headerName: 'Amount',
-              width: 120,
-              renderCell: (params) => (
-                <Typography
-                  color={
-                    params.row.type === 'in'
-                      ? 'green'
-                      : params.row.type === 'out'
-                      ? 'red'
-                      : 'blue'
-                  }
-                >
-                  {params.row.type === 'in'
-                    ? `+₹${parseFloat(params.value).toFixed(2)}`
-                    : params.row.type === 'out'
-                    ? `-₹${parseFloat(params.value).toFixed(2)}`
-                    : `₹${parseFloat(params.value).toFixed(2)}`}
-                </Typography>
-              ),
-            },
-            { field: 'remark', headerName: 'Remark', width: 200 },
-            {
-              field: 'actions',
-              headerName: 'Actions',
-              width: 100,
-              sortable: false,
-              renderCell: (params) => {
-                return params.row.source === 'daily' ? (
-                  <IconButton color="error" onClick={() => handleDeleteTransaction(params.row._id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                ) : null;
+              {
+                field: 'paymentTo',
+                headerName: 'To',
+                width: 150,
+                renderCell: (params) => {
+                  // If the field is an account ID, try to show the accountName
+                  const account = accounts.find((acc) => acc.accountId === params.value);
+                  return account ? account.accountName : params.value;
+                },
               },
-            },
-          ]}
-          pageSize={10}
-          rowsPerPageOptions={[10, 20, 50]}
-          disableSelectionOnClick
-          autoHeight
-          sx={{ border: 0, '& .MuiDataGrid-cell': { py: 1 } }}
-        />
-        
+              {
+                field: 'amount',
+                headerName: 'Amount',
+                width: 120,
+                renderCell: (params) => {
+                  const amount = parseFloat(params.value).toFixed(2);
+                  return (
+                    <Typography
+                      color={
+                        params.row.type === 'in'
+                          ? 'green'
+                          : params.row.type === 'out'
+                          ? 'red'
+                          : 'blue'
+                      }
+                    >
+                      {params.row.type === 'in'
+                        ? `+₹${amount}`
+                        : params.row.type === 'out'
+                        ? `-₹${amount}`
+                        : `₹${amount}`}
+                    </Typography>
+                  );
+                },
+              },
+              { field: 'remark', headerName: 'Remark', width: 200 },
+              {
+                field: 'actions',
+                headerName: 'Actions',
+                width: 100,
+                sortable: false,
+                renderCell: (params) => {
+                  // Only allow deleting if it's a 'daily' transaction source
+                  return params.row.source === 'daily' ? (
+                    <IconButton
+                      color="error"
+                      onClick={() => handleDeleteTransaction(params.row._id)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  ) : null;
+                },
+              },
+            ]}
+            pageSize={10}
+            rowsPerPageOptions={[10, 20, 50]}
+            disableSelectionOnClick
+            autoHeight
+            sx={{ border: 0, '& .MuiDataGrid-cell': { py: 1 } }}
+          />
         )}
       </Paper>
 
-      {/* Fixed Bottom Actions Bar */}
+      {/* Fixed Bottom Action Buttons */}
       <Box
         sx={{
           position: 'fixed',
@@ -896,6 +960,7 @@ const DailyTransactions = () => {
           zIndex: 100,
         }}
       >
+        {/* Add Payment In */}
         <Button
           onClick={() => openModal('in')}
           variant="outlined"
@@ -903,8 +968,10 @@ const DailyTransactions = () => {
           sx={{ minWidth: 56, minHeight: 58, borderRadius: '50%' }}
           title="Add Payment In"
         >
-          +
+          <AddIcon />
         </Button>
+
+        {/* Transfer */}
         <Button
           onClick={() => openModal('transfer')}
           variant="outlined"
@@ -914,6 +981,8 @@ const DailyTransactions = () => {
         >
           <Bank />
         </Button>
+
+        {/* Add Payment Out */}
         <Button
           onClick={() => openModal('out')}
           variant="outlined"
@@ -921,8 +990,10 @@ const DailyTransactions = () => {
           sx={{ minWidth: 56, minHeight: 58, borderRadius: '50%' }}
           title="Add Payment Out"
         >
-          –
+          -
         </Button>
+
+        {/* Generate Report */}
         <Button
           onClick={handleGenerateReport}
           variant="outlined"
@@ -969,6 +1040,7 @@ const DailyTransactions = () => {
               sx={{ mb: 2 }}
               required
             />
+
             {(modalType === 'in' || modalType === 'transfer') && (
               <TextField
                 label="Payment From"
@@ -981,6 +1053,7 @@ const DailyTransactions = () => {
                 required
               />
             )}
+
             {(modalType === 'out' || modalType === 'transfer') && (
               <TextField
                 label="Payment To"
@@ -993,6 +1066,7 @@ const DailyTransactions = () => {
                 required
               />
             )}
+
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Category</InputLabel>
               {!showAddCategory ? (
@@ -1033,6 +1107,7 @@ const DailyTransactions = () => {
                 </Box>
               )}
             </FormControl>
+
             {modalType === 'out' && transactionData.category === 'Purchase Payment' && (
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Purchase</InputLabel>
@@ -1047,14 +1122,11 @@ const DailyTransactions = () => {
                   <MenuItem value="">
                     <em>Select Purchase</em>
                   </MenuItem>
-                  {purchasePayments.map((purchase, index) => (
-                    <MenuItem key={index} value={purchase._id}>
-                      {purchase.invoiceNo} - {purchase.sellerName}
-                    </MenuItem>
-                  ))}
+                  {/* Map your purchase references here if you like */}
                 </Select>
               </FormControl>
             )}
+
             {modalType === 'out' && transactionData.category === 'Transport Payment' && (
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Transport</InputLabel>
@@ -1069,14 +1141,11 @@ const DailyTransactions = () => {
                   <MenuItem value="">
                     <em>Select Transport</em>
                   </MenuItem>
-                  {transportPayments.map((transport, index) => (
-                    <MenuItem key={index} value={transport._id}>
-                      {transport.transportName} - {new Date(transport.transportDate).toLocaleDateString()}
-                    </MenuItem>
-                  ))}
+                  {/* Map your transport references here if you like */}
                 </Select>
               </FormControl>
             )}
+
             <TextField
               label="Amount"
               type="number"
@@ -1090,6 +1159,7 @@ const DailyTransactions = () => {
               required
               placeholder="Enter amount in Rs."
             />
+
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Payment Method</InputLabel>
               <Select
@@ -1110,6 +1180,7 @@ const DailyTransactions = () => {
                 ))}
               </Select>
             </FormControl>
+
             <TextField
               label="Remark"
               fullWidth
@@ -1125,19 +1196,25 @@ const DailyTransactions = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeModal} color="secondary">Cancel</Button>
+          <Button onClick={closeModal} color="secondary">
+            Cancel
+          </Button>
           <Button onClick={handleTransactionSubmit} variant="outlined" color="primary">
             Add Transaction
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbars for Error and Success */}
+      {/* Snackbars */}
       <Snackbar open={Boolean(error)} autoHideDuration={3000} onClose={() => setError('')}>
-        <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+        <Alert severity="error" onClose={() => setError('')}>
+          {error}
+        </Alert>
       </Snackbar>
       <Snackbar open={openSuccess} autoHideDuration={3000} onClose={() => setOpenSuccess(false)}>
-        <Alert severity="success" onClose={() => setOpenSuccess(false)}>{successMessage}</Alert>
+        <Alert severity="success" onClose={() => setOpenSuccess(false)}>
+          {successMessage}
+        </Alert>
       </Snackbar>
     </Box>
   );

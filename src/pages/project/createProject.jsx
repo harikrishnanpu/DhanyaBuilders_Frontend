@@ -77,7 +77,7 @@ export default function CreateProjectScreen() {
       const response = await api.post('/api/projects/create', projectData);
       console.log('Project created:', response.data);
       alert('Project created successfully!');
-      navigate('/projects'); // Redirect to projects list page
+      navigate('/project/all'); // Redirect to projects list page
     } catch (error) {
       console.error('Error creating project:', error);
       setError('There was an error creating the project. Please try again.');

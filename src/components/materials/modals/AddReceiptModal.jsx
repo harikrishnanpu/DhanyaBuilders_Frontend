@@ -28,9 +28,10 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
   const [showMaterialSearchModal, setShowMaterialSearchModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // NOTE: We are keeping this as-is per your instructions.
+  // Auth info (assuming a custom hook returns user info)
   const { user: userInfo } = useAuth();
 
+  // If a single "approved material" is passed, automatically add it to items
   useEffect(() => {
     if (material && material._id) {
       handleAddMaterial(material);
@@ -38,52 +39,60 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [material]);
 
-  // Add Material to Items
-  const handleAddMaterial = (material) => {
-    const existingItem = items.find(
-      (item) => item.material._id === material.material._id
+  // Add a material to the list (either from "Approved Materials" or the search modal)
+  const handleAddMaterial = (mat) => {
+    // If already present, skip
+    const exists = items.find(
+      (itm) => itm.material._id === mat.material._id
     );
-    if (existingItem) {
+    if (exists) {
       alert('Material already added.');
       return;
     }
-    setItems([
-      ...items,
+    setItems((prev) => [
+      ...prev,
       {
-        material: material.material,
-        quantity: material.approvedQuantity || 1,
-        fromApprovedMaterial: true, // Flag to indicate approved material
+        material: mat.material,
+        quantity: mat.approvedQuantity || 1, // default quantity
+        fromApprovedMaterial: !!mat.approvedQuantity,
       },
     ]);
   };
 
-  // Handle Quantity Change
+  // Handle quantity changes
   const handleQuantityChange = (index, quantity) => {
-    const updatedItems = [...items];
-    updatedItems[index].quantity = Number(quantity);
-    setItems(updatedItems);
+    const updated = [...items];
+    updated[index].quantity = Number(quantity) || 1;
+    setItems(updated);
   };
 
-  // Submit Material Receipt
+  // Submit the final receipt
   const handleSubmit = async () => {
+    if (!date) {
+      alert('Please select a date for the receipt.');
+      return;
+    }
     if (items.length === 0) {
       alert('Please add at least one material.');
       return;
     }
+
     setLoading(true);
     try {
+      // Prepare items for submission
       const formattedItems = items.map((item) => ({
         material: item.material._id,
         quantity: item.quantity,
       }));
 
+      // 1) Create the new receipt
       await api.post(`/api/projects/project/add-receipt/${projectId}`, {
         date,
         items: formattedItems,
-        userId: userInfo._id,
+        userId: userInfo?._id,
       });
 
-      // Mark approved materials as received
+      // 2) If some items came from approved materials, mark them as received
       for (const item of items) {
         if (item.fromApprovedMaterial) {
           await api.put(
@@ -96,7 +105,7 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
         }
       }
 
-      alert('Material receipt added.');
+      alert('Material receipt added successfully.');
       onClose();
     } catch (error) {
       console.error('Error adding receipt:', error);
@@ -123,6 +132,7 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
             position: 'absolute',
             bottom: 0,
             borderRadius: '8px 8px 0 0',
+            boxShadow: 'none',
           },
         }}
       >
@@ -141,22 +151,21 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
+
         <DialogContent dividers>
           <Box component="form" noValidate>
-            {/* Date */}
+            {/* Date Field */}
             <TextField
               label="Date"
               type="date"
               fullWidth
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
               margin="normal"
             />
 
-            {/* Materials Items */}
+            {/* Items List */}
             <Box sx={{ mt: 2 }}>
               <Button
                 variant="outlined"
@@ -165,6 +174,7 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
               >
                 + Add Material
               </Button>
+
               {items.map((item, index) => (
                 <Box
                   key={item.material._id}
@@ -173,7 +183,7 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
                     alignItems: 'center',
                     mt: 2,
                     p: 1,
-                    border: '1px solid #ccc',
+                    border: `1px solid #ccc`,
                     borderRadius: 1,
                   }}
                 >
@@ -186,9 +196,7 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
                     type="number"
                     label="Qty"
                     value={item.quantity}
-                    onChange={(e) =>
-                      handleQuantityChange(index, e.target.value)
-                    }
+                    onChange={(e) => handleQuantityChange(index, e.target.value)}
                     InputProps={{ inputProps: { min: 1 } }}
                     size="small"
                     sx={{ width: 80, mr: 1 }}
@@ -197,7 +205,7 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
                     variant="text"
                     color="error"
                     onClick={() =>
-                      setItems(items.filter((_, idx) => idx !== index))
+                      setItems((prev) => prev.filter((_, i) => i !== index))
                     }
                   >
                     Remove
@@ -207,11 +215,12 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
             </Box>
           </Box>
         </DialogContent>
+
         <DialogActions sx={{ p: 2 }}>
           <Button
             onClick={handleSubmit}
-            variant="outlined"
-            color="success"
+            variant="contained"
+            color="primary"
             disabled={loading}
             fullWidth
           >
@@ -220,12 +229,13 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Material Search Modal */}
+      {/* Modal to search for new materials (not pre-approved) */}
       {showMaterialSearchModal && (
         <MaterialSearchModal
           open={showMaterialSearchModal}
-          onAdd={(material) => {
-            handleAddMaterial({ material, approvedQuantity: 0 });
+          onAdd={(foundMaterial) => {
+            // "foundMaterial" might just have "material" property
+            handleAddMaterial({ material: foundMaterial, approvedQuantity: 0 });
             setShowMaterialSearchModal(false);
           }}
           onClose={() => setShowMaterialSearchModal(false)}

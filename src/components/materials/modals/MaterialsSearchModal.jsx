@@ -1,4 +1,3 @@
-// src/components/materials/modals/MaterialSearchModal.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -27,8 +26,12 @@ const MaterialSearchModal = ({ onAdd, onClose, open }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [materials, setMaterials] = useState([]);
   const [showAddMaterialForm, setShowAddMaterialForm] = useState(false);
+
+  // New fields for adding a material
   const [newMaterialName, setNewMaterialName] = useState('');
   const [newMaterialUnit, setNewMaterialUnit] = useState('');
+  const [newMaterialDescription, setNewMaterialDescription] = useState('');
+  const [newMaterialImage, setNewMaterialImage] = useState(null);
 
   const units = [
     'nos',
@@ -50,6 +53,23 @@ const MaterialSearchModal = ({ onAdd, onClose, open }) => {
     // ... add more units as needed
   ];
 
+  // Upload the image file to Cloudinary and return its URL
+  const handleImageUpload = async (file) => {
+    const data = new FormData();
+    data.append('file', file);
+    data.append('upload_preset', 'ml_default'); // replace with your preset
+    const res = await fetch(
+      'https://api.cloudinary.com/v1_1/dqniuczkg/image/upload', // replace with your cloud name
+      {
+        method: 'POST',
+        body: data,
+      }
+    );
+    const result = await res.json();
+    return result.secure_url;
+  };
+
+  // Search for existing materials
   const searchMaterials = async () => {
     try {
       const response = await api.get('/api/projects/project/searchMaterial', {
@@ -74,15 +94,30 @@ const MaterialSearchModal = ({ onAdd, onClose, open }) => {
       alert('Please enter material name and unit.');
       return;
     }
+    let imageUrl = "";
+    if (newMaterialImage) {
+      try {
+        imageUrl = await handleImageUpload(newMaterialImage);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        alert("Image upload failed, please try again.");
+        return;
+      }
+    }
     try {
       const response = await api.post('/api/projects/material/add', {
         name: newMaterialName,
         unit: newMaterialUnit,
+        imageUrl,
+        description: newMaterialDescription,
       });
       onAdd(response.data.material);
+      // Reset the form and close the modal.
       setShowAddMaterialForm(false);
       setNewMaterialName('');
       setNewMaterialUnit('');
+      setNewMaterialDescription('');
+      setNewMaterialImage(null);
       onClose();
     } catch (error) {
       console.error('Error adding new material:', error);
@@ -139,15 +174,46 @@ const MaterialSearchModal = ({ onAdd, onClose, open }) => {
             key={material._id}
             sx={{
               display: 'flex',
-              justifyContent: 'space-between',
               alignItems: 'center',
               borderBottom: '1px solid #ccc',
               py: 1,
             }}
           >
-            <Typography variant="body1">
-              {material.name} ({material.unit})
-            </Typography>
+            {/* Material Image or fallback card */}
+            {material.imageUrl ? (
+              <Box
+                component="img"
+                src={material.imageUrl}
+                alt={material.name}
+                sx={{
+                  width: 50,
+                  height: 50,
+                  objectFit: 'cover',
+                  borderRadius: 1,
+                }}
+              />
+            ) : (
+              <Box
+                sx={{
+                  width: 50,
+                  height: 50,
+                  backgroundColor: 'grey.300',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 1,
+                }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  {material.name.charAt(0).toUpperCase()}
+                </Typography>
+              </Box>
+            )}
+            <Box sx={{ ml: 2, flexGrow: 1 }}>
+              <Typography variant="body1">
+                {material.name} ({material.unit})
+              </Typography>
+            </Box>
             <Button
               variant="outlined"
               color="primary"
@@ -161,7 +227,7 @@ const MaterialSearchModal = ({ onAdd, onClose, open }) => {
           </Box>
         ))}
 
-        {/* Add New Material */}
+        {/* Add New Material Section */}
         <Box sx={{ mt: 2 }}>
           {!showAddMaterialForm ? (
             <Button
@@ -198,6 +264,29 @@ const MaterialSearchModal = ({ onAdd, onClose, open }) => {
                   ))}
                 </Select>
               </FormControl>
+              <TextField
+                label="Description"
+                variant="outlined"
+                fullWidth
+                multiline
+                rows={3}
+                value={newMaterialDescription}
+                onChange={(e) => setNewMaterialDescription(e.target.value)}
+              />
+              <Button variant="outlined" component="label">
+                Upload Image
+                <input
+                  hidden
+                  accept="image/*"
+                  type="file"
+                  onChange={(e) => setNewMaterialImage(e.target.files[0])}
+                />
+              </Button>
+              {newMaterialImage && (
+                <Typography variant="caption">
+                  Selected: {newMaterialImage.name}
+                </Typography>
+              )}
               <Button
                 variant="outlined"
                 color="success"

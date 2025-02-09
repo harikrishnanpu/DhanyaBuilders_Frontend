@@ -1,10 +1,7 @@
 // src/components/Tasks/TaskDialog.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  SwipeableDrawer,
   Tabs,
   Tab,
   Box,
@@ -16,7 +13,7 @@ import {
   FormControl,
   InputLabel,
   Typography,
-  Slide,
+  Divider,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { LocalizationProvider } from '@mui/x-date-pickers';
@@ -29,21 +26,11 @@ import AttachmentsSection from './Attachement';
 import CommentsSection from './Commentssections';
 import TimeTrackingSection from './TimeTracking';
 
-const Transition = React.forwardRef(function Transition(props, ref) {
-  return <Slide direction="up" ref={ref} {...props} />;
-});
-
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const STATUSES = ['Not Started', 'In Progress', 'Completed', 'Verified', 'Denied', 'Re-do'];
 
-export default function TaskDialog({
-  open,
-  onClose,
-  onSubmit,
-  editingTaskData,
-  onDelete,
-}) {
-  // Local state for dialog tab and task data
+export default function TaskDialog({ open, onClose, onSubmit, editingTaskData, onDelete }) {
+  // Local state for tab index and task data
   const [tabIndex, setTabIndex] = useState(0);
   const [data, setData] = useState({
     title: editingTaskData?.title || '',
@@ -60,7 +47,7 @@ export default function TaskDialog({
     recurrenceRule: editingTaskData?.recurrenceRule || 'Every Monday',
   });
 
-  // When editingTaskData changes (or when opening for edit), update local state
+  // Update local state when editingTaskData changes
   useEffect(() => {
     setData({
       title: editingTaskData?.title || '',
@@ -86,7 +73,7 @@ export default function TaskDialog({
     setData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Callback to update the checklist state when modified in the ChecklistSection
+  // Update checklist state from ChecklistSection
   const handleChecklistUpdate = (updatedList) => {
     setData((prev) => ({ ...prev, checklist: updatedList }));
   };
@@ -139,24 +126,59 @@ export default function TaskDialog({
   };
 
   return (
-    <Dialog
+    <SwipeableDrawer
+      anchor="bottom"
       open={open}
       onClose={onClose}
-      TransitionComponent={Transition}
-      fullWidth
-      maxWidth="md"
+      onOpen={() => {}}
+      disableSwipeToOpen={false}
       PaperProps={{
-        sx: { borderRadius: 2, overflow: 'hidden' },
+        sx: {
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          height: { xs: '90vh', sm: '80vh' },
+          overflow: 'visible',
+        },
       }}
     >
-      <DialogTitle sx={{ p: 2, display: 'flex', justifyContent: 'space-between' }}>
-        {editingTaskData ? 'Edit Task' : 'Create Task'}
+      {/* Drag handle */}
+      <Box
+        sx={{
+          width: 40,
+          height: 4,
+          backgroundColor: 'grey.400',
+          borderRadius: 2,
+          margin: '8px auto',
+        }}
+      />
+      {/* Header */}
+      <Box
+        sx={{
+          px: 2,
+          py: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Typography variant="h6">
+          {editingTaskData ? 'Edit Task' : 'Create Task'}
+        </Typography>
         <IconButton onClick={onClose}>
           <CloseIcon />
         </IconButton>
-      </DialogTitle>
+      </Box>
 
-      <Tabs value={tabIndex} onChange={handleChangeTab} variant="scrollable" scrollButtons="auto">
+      {/* Tabs */}
+      <Tabs
+        value={tabIndex}
+        onChange={handleChangeTab}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
+      >
         <Tab label="Details" />
         <Tab label="Checklist" />
         <Tab label="Attachments" />
@@ -166,8 +188,8 @@ export default function TaskDialog({
         <Tab label="Report/Export" />
       </Tabs>
 
-      <DialogContent sx={{ p: 2, minHeight: '400px' }}>
-        {/* Tab Panels */}
+      {/* Content Area */}
+      <Box sx={{ px: 2, py: 1, overflowY: 'auto', flexGrow: 1, maxHeight: { xs: 'calc(90vh - 200px)', sm: 'calc(80vh - 200px)' } }}>
         {tabIndex === 0 && (
           <Box>
             <TextField
@@ -199,7 +221,6 @@ export default function TaskDialog({
                 ))}
               </Select>
             </FormControl>
-
             <FormControl margin="dense" fullWidth>
               <InputLabel>Priority</InputLabel>
               <Select
@@ -214,7 +235,6 @@ export default function TaskDialog({
                 ))}
               </Select>
             </FormControl>
-
             <LocalizationProvider dateAdapter={AdapterDateFns}>
               <DateTimePicker
                 label="Start Date & Time"
@@ -304,19 +324,31 @@ export default function TaskDialog({
             <Button variant="outlined">Export Task</Button>
           </Box>
         )}
-      </DialogContent>
+      </Box>
 
-      <DialogActions sx={{ p: 2 }}>
+      {/* Actions */}
+      <Box
+        sx={{
+          px: 2,
+          py: 1,
+          borderTop: 1,
+          borderColor: 'divider',
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}
+      >
         {editingTaskData && (
           <Button color="error" onClick={() => onDelete(editingTaskData._id)}>
             Delete
           </Button>
         )}
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} sx={{ mr: 1 }}>
+          Cancel
+        </Button>
         <Button variant="contained" onClick={handleSubmit}>
           {editingTaskData ? 'Update' : 'Create'}
         </Button>
-      </DialogActions>
-    </Dialog>
+      </Box>
+    </SwipeableDrawer>
   );
 }

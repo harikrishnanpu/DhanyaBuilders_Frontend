@@ -1,4 +1,3 @@
-// src/components/materials/ReceivedTab.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
@@ -32,17 +31,16 @@ import {
   Refresh,
   Search,
   Add,
-  ExpandMore
+  ExpandMore,
 } from '@mui/icons-material';
-import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import { format } from 'date-fns';
 import { useDebounce } from 'use-debounce';
 import api from 'pages/api';
 import AddReceiptModal from './modals/AddReceiptModal';
 
 /**
- * Colors for potential statuses (if you'd like to show them). 
- * Adjust or remove if receipts/approved materials don't have statuses.
+ * If your receipts have statuses, you can define colors here.
+ * Or remove if you don't have statuses in your receipts.
  */
 const statusColors = {
   Pending: 'warning',
@@ -51,52 +49,61 @@ const statusColors = {
   Received: 'info',
 };
 
-/**
- * The ReceivedTab shows two main pieces of data:
- * 1. Approved Materials (those waiting to be received).
- * 2. Receipts (actual records of received materials).
- */
 const ReceivedTab = ({ projectId }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // State for data
-  const [receipts, setReceipts] = useState([]);
+  // State for "Approved Materials" (waiting to be received) and "Receipts"
   const [approvedMaterials, setApprovedMaterials] = useState([]);
+  const [receipts, setReceipts] = useState([]);
 
-  // Loading / Error states
+  // Flattened list of all received items
+  const [receivedItems, setReceivedItems] = useState([]);
+
+  // Loading and error states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Modal states
-  const [showAddReceiptModal, setShowAddReceiptModal] = useState(false);
-  const [selectedMaterial, setSelectedMaterial] = useState(null);
-
-  // Search & Sorting
+  // Search and sorting
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch] = useDebounce(searchTerm, 500);
   const [sortBy, setSortBy] = useState('newest');
 
-  // For expansions in the mobile layout
+  // For Add Receipt Modal
+  const [showAddReceiptModal, setShowAddReceiptModal] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState(null);
+
+  // For expansion in mobile cards
   const [expandedCard, setExpandedCard] = useState(null);
 
-  // Pagination for DataGrid
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
-
-  /**
-   * Fetch both receipts and approved materials in parallel
-   */
+  // Fetch data: both "approved" materials and "receipts"
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Adjust endpoints to match your actual APIs
       const [receiptRes, approvedRes] = await Promise.all([
         api.get(`/api/projects/project/get-receipt-material/${projectId}`),
-        api.get(`/api/projects/project/approved-materials/${projectId}`),
+        api.get(`/api/projects/project/approved-materials/${projectId}`)
       ]);
-      setReceipts(receiptRes.data);
-      setApprovedMaterials(approvedRes.data);
+      const fetchedReceipts = receiptRes.data;
+      const fetchedApproved = approvedRes.data;
+
+      // Flatten each receipt's items into a single array, so we can show them by material basis
+      // (with the receipt ID, date, etc.)
+      // We assume each item might also store a requestId if your backend includes it.
+      const flattened = fetchedReceipts.flatMap((receipt) =>
+        receipt.items.map((item) => ({
+          ...item,                      // { material, quantity, etc. }
+          receiptId: receipt.receiptId, // link to the receipt
+          date: receipt.date || null,
+          // optional: if you store the original requestId in the item (item.requestId):
+          // requestId: item.requestId || null,
+        }))
+      );
+
+      setReceipts(fetchedReceipts);
+      setApprovedMaterials(fetchedApproved);
+      setReceivedItems(flattened);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load data. Please try again.');
@@ -111,242 +118,83 @@ const ReceivedTab = ({ projectId }) => {
     }
   }, [projectId, fetchData]);
 
-  /**
-   * Called when user clicks "Add to Receipt" or the FAB button.
-   */
+  // Called when user wants to add a new receipt (either blank or with a preselected material).
   const handleAddReceipt = (material) => {
     setSelectedMaterial(material || null);
     setShowAddReceiptModal(true);
   };
 
-  /**
-   * Called when the modal is closed (receipt added or canceled).
-   */
+  // Called after a receipt has been added or the modal is closed
   const handleReceiptAdded = () => {
     setShowAddReceiptModal(false);
     setSelectedMaterial(null);
     fetchData();
   };
 
-  /**
-   * Filter + sort logic for receipts
-   */
-  const filteredReceipts = receipts
-    // Filter by receiptId or included items
-    .filter((r) => {
-      if (!debouncedSearch.trim()) return true;
-      const matchesReceiptId = r.receiptId
-        ?.toLowerCase()
-        .includes(debouncedSearch.toLowerCase());
-      const matchesItem = r.items?.some((item) =>
-        item.material.name
-          .toLowerCase()
-          .includes(debouncedSearch.toLowerCase())
-      );
-      return matchesReceiptId || matchesItem;
+  // Filter + sort for "approved" materials
+  const filteredApprovedMaterials = approvedMaterials.filter((am) => {
+    const term = debouncedSearch.trim().toLowerCase();
+    if (!term) return true;
+    return am.material.name.toLowerCase().includes(term);
+  });
+
+  // Show the "approved" materials in the requested sort order (if needed).
+  // For now, we won't do date-based sorting of approved materials, but you can add logic if you want.
+
+  // Filter + sort for "received" items
+  const filteredReceivedItems = receivedItems
+    .filter((ri) => {
+      const term = debouncedSearch.trim().toLowerCase();
+      if (!term) return true;
+      // match either the material name, the receiptId, or an optional requestId
+      const matchesName = ri.material.name.toLowerCase().includes(term);
+      const matchesReceiptId = ri.receiptId?.toLowerCase().includes(term);
+      // If your backend populates a requestId, you can match it here:
+      // const matchesRequestId = ri.requestId && ri.requestId.toLowerCase().includes(term);
+      // return matchesName || matchesReceiptId || matchesRequestId;
+
+      return matchesName || matchesReceiptId;
     })
-    // Sort by createdAt or date (adjust as needed)
     .sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
       if (sortBy === 'newest') {
         return new Date(b.date) - new Date(a.date);
       }
       return new Date(a.date) - new Date(b.date);
     });
 
-  /**
-   * Filter + sort logic for approved materials
-   * (If you'd like to search or sort them similarly)
-   */
-  const filteredApprovedMaterials = approvedMaterials.filter((m) => {
-    if (!debouncedSearch.trim()) return true;
-    return m.material.name
-      .toLowerCase()
-      .includes(debouncedSearch.toLowerCase());
-  });
-
-  const handleExpand = (id) => {
-    setExpandedCard(expandedCard === id ? null : id);
+  // Toggle expansion for mobile cards
+  const handleExpand = (materialId) => {
+    setExpandedCard(expandedCard === materialId ? null : materialId);
   };
 
-  /**
-   * DataGrid columns for receipts (desktop view)
-   */
-  const receiptColumns = [
-    {
-      field: 'receiptId',
-      headerName: 'Receipt ID',
-      flex: 1,
-      minWidth: 150,
-      renderCell: (params) => (
-        <Box>
-          <Typography variant="body2" fontWeight={500} noWrap>
-            {params.value}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {params.row.date ? format(new Date(params.row.date), 'dd MMM yy') : 'N/A'}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      field: 'items',
-      headerName: 'Items',
-      flex: 2,
-      minWidth: 200,
-      renderCell: (params) => {
-        if (!params.value?.length) {
-          return (
-            <Typography variant="body2" color="text.secondary">
-              No items
-            </Typography>
-          );
-        }
-        return (
-          <Stack spacing={0.5}>
-            {params.value.map((item, index) => (
-              <Typography key={index} variant="body2" noWrap>
-                {item.material.name} - {item.quantity} {item.material.unit}
-              </Typography>
-            ))}
-          </Stack>
-        );
-      },
-    },
-    {
-      field: 'status',
-      headerName: 'Status',
-      flex: 1,
-      minWidth: 120,
-      renderCell: (params) => {
-        if (!params.value) {
-          return (
-            <Chip
-              label="N/A"
-              variant="outlined"
-              size="small"
-              sx={{ fontWeight: 500 }}
-            />
-          );
-        }
-        return (
-          <Chip
-            label={params.value}
-            color={statusColors[params.value] || 'default'}
-            variant="outlined"
-            size="small"
-            sx={{ fontWeight: 500 }}
-          />
-        );
-      },
-    },
-    {
-      field: 'actions',
-      type: 'actions',
-      flex: 1,
-      minWidth: 80,
-      getActions: (params) => [
-        // Example actions if you want to edit or view
-        // <GridActionsCellItem
-        //   icon={<Edit />}
-        //   label="Edit"
-        //   onClick={() => console.log('Edit receipt', params.row._id)}
-        // />,
-      ],
-    },
-  ];
+  // ===============================
+  // MOBILE CARD VIEWS
+  // ===============================
 
-  /**
-   * Mobile Card View for Receipts
-   */
-  const MobileReceiptsCardView = () => (
-    <Box sx={{ p: 2 }}>
-      {filteredReceipts.map((receipt) => (
-        <Card key={receipt._id} sx={{ mb: 2, boxShadow: 3 }}>
-          <CardHeader
-            avatar={
-              <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
-                {/* Using first 2 letters of receiptId as avatar text */}
-                {receipt.receiptId.slice(0, 2)}
-              </Avatar>
-            }
-            title={
-              <Typography variant="subtitle1" fontWeight={600}>
-                {receipt.receiptId}
-              </Typography>
-            }
-            subheader={
-              <Stack direction="row" spacing={1} alignItems="center">
-                {receipt.status && (
-                  <Chip
-                    label={receipt.status}
-                    color={statusColors[receipt.status] || 'default'}
-                    size="small"
-                    variant="outlined"
-                  />
-                )}
-                <Typography variant="caption" color="text.secondary">
-                  {receipt.date
-                    ? format(new Date(receipt.date), 'dd MMM yyyy')
-                    : 'N/A'}
-                </Typography>
-              </Stack>
-            }
-            action={
-              <IconButton onClick={() => handleExpand(receipt._id)}>
-                <ExpandMore
-                  sx={{
-                    transform: expandedCard === receipt._id ? 'rotate(180deg)' : 'none',
-                    transition: theme.transitions.create('transform', {
-                      duration: theme.transitions.duration.shortest,
-                    }),
-                  }}
-                />
-              </IconButton>
-            }
-          />
-          <Collapse in={expandedCard === receipt._id}>
-            <CardContent>
-              <Typography variant="body2" fontWeight="medium">
-                Items:
-              </Typography>
-              {receipt.items && receipt.items.length > 0 ? (
-                receipt.items.map((item, index) => (
-                  <Typography key={index} variant="body2">
-                    • {item.material.name} - {item.quantity} {item.material.unit}
-                  </Typography>
-                ))
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No items in this receipt.
-                </Typography>
-              )}
-            </CardContent>
-            <Divider sx={{ mt: 2 }} />
-            <CardActions sx={{ justifyContent: 'flex-end' }}>
-              {/* Example additional actions (edit, etc.) */}
-            </CardActions>
-          </Collapse>
-        </Card>
-      ))}
-    </Box>
-  );
-
-  /**
-   * Mobile Card View for Approved Materials
-   */
+  /** Approved (mobile) */
   const MobileApprovedCardView = () => (
-    <Box sx={{ p: 2 }}>
-      {filteredApprovedMaterials.map((material) => (
-        <Card key={material._id} sx={{ mb: 2, boxShadow: 1 }}>
+    <Box sx={{ p: 1 }}>
+      {filteredApprovedMaterials.map((mat) => (
+        <Card
+          key={mat._id}
+          sx={{
+            mb: 2,
+            boxShadow: 0,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 2,
+          }}
+        >
           <CardHeader
             title={
               <Typography variant="subtitle1" fontWeight={600}>
-                {material.material?.name || 'Unnamed Material'}
+                {mat.material.name}
               </Typography>
             }
             subheader={
               <Typography variant="caption" color="text.secondary">
-                Approved Qty: {material.approvedQuantity} {material.material.unit}
+                Approved: {mat.approvedQuantity} {mat.material.unit}
               </Typography>
             }
           />
@@ -354,7 +202,7 @@ const ReceivedTab = ({ projectId }) => {
             <Button
               variant="outlined"
               size="small"
-              onClick={() => handleAddReceipt(material)}
+              onClick={() => handleAddReceipt(mat)}
             >
               Add to Receipt
             </Button>
@@ -364,6 +212,197 @@ const ReceivedTab = ({ projectId }) => {
     </Box>
   );
 
+  /**
+   * Received Items (mobile): each "flattened" item is displayed as a card with the
+   * material image or a placeholder, quantity, receiptId, optional requestId, etc.
+   */
+  const MobileReceivedCardView = () => (
+    <Box sx={{ p: 1 }}>
+      {filteredReceivedItems.map((item, idx) => (
+        <Card
+          key={idx}
+          sx={{
+            mb: 2,
+            boxShadow: 0,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 2,
+          }}
+        >
+          <CardHeader
+            avatar={
+              <Avatar
+                sx={{
+                  bgcolor: theme.palette.primary.main,
+                  width: 45,
+                  height: 45,
+                }}
+              >
+                {item.material.name.charAt(0).toUpperCase()}
+              </Avatar>
+            }
+            title={
+              <Typography variant="subtitle2" fontWeight={600}>
+                {item.material.name}
+              </Typography>
+            }
+            subheader={
+              <Typography variant="caption" color="text.secondary">
+                {item.receiptId
+                  ? `Receipt: ${item.receiptId}`
+                  : 'No Receipt ID'}
+              </Typography>
+            }
+            action={
+              <IconButton onClick={() => handleExpand(idx)}>
+                <ExpandMore
+                  sx={{
+                    transform: expandedCard === idx ? 'rotate(180deg)' : 'none',
+                    transition: theme.transitions.create('transform', {
+                      duration: theme.transitions.duration.shortest,
+                    }),
+                  }}
+                />
+              </IconButton>
+            }
+          />
+          <Collapse in={expandedCard === idx}>
+            <CardContent>
+              {/* If you store an imageUrl on the material, show it here: */}
+              {item.material.imageUrl ? (
+                <Box
+                  component="img"
+                  src={item.material.imageUrl}
+                  alt={item.material.name}
+                  sx={{
+                    width: '100%',
+                    maxHeight: 180,
+                    objectFit: 'cover',
+                    borderRadius: 2,
+                    mb: 2,
+                  }}
+                />
+              ) : null}
+
+              <Typography variant="body2">
+                Received Qty: {item.quantity} {item.material.unit}
+              </Typography>
+              {item.date && (
+                <Typography variant="caption" color="text.secondary">
+                  Received on: {format(new Date(item.date), 'dd MMM yyyy')}
+                </Typography>
+              )}
+              {/* If you have item.requestId from your backend, display it: */}
+              {/* <Typography variant="caption" display="block" color="text.secondary">
+                Request ID: {item.requestId}
+              </Typography> */}
+            </CardContent>
+          </Collapse>
+        </Card>
+      ))}
+    </Box>
+  );
+
+  // ===============================
+  // DESKTOP: Grid or Card Layout
+  // ===============================
+
+  /**
+   * Approved (desktop)
+   */
+  const DesktopApprovedView = () => (
+    <Grid container spacing={2}>
+      {filteredApprovedMaterials.map((mat) => (
+        <Grid item xs={12} md={6} lg={4} key={mat._id}>
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: 2,
+              border: `1px solid ${theme.palette.divider}`,
+              boxShadow: 0,
+            }}
+          >
+            <Typography variant="subtitle1" fontWeight="600">
+              {mat.material.name}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Approved: {mat.approvedQuantity} {mat.material.unit}
+            </Typography>
+            <Box sx={{ mt: 2, textAlign: 'right' }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => handleAddReceipt(mat)}
+              >
+                Add to Receipt
+              </Button>
+            </Box>
+          </Box>
+        </Grid>
+      ))}
+    </Grid>
+  );
+
+  /**
+   * Received Items (desktop):
+   * We create a simple grid of cards, each representing one item from the flattened array.
+   */
+  const DesktopReceivedView = () => (
+    <Grid container spacing={2}>
+      {filteredReceivedItems.map((item, idx) => (
+        <Grid item xs={12} sm={6} md={4} lg={3} key={idx}>
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: 2,
+              border: `1px solid ${theme.palette.divider}`,
+              boxShadow: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+            }}
+          >
+            {/* Material name and optional image */}
+            <Typography variant="subtitle2" fontWeight={600}>
+              {item.material.name}
+            </Typography>
+            {item.material.imageUrl && (
+              <Box
+                component="img"
+                src={item.material.imageUrl}
+                alt={item.material.name}
+                sx={{
+                  width: '100%',
+                  maxHeight: 140,
+                  objectFit: 'cover',
+                  borderRadius: 1,
+                }}
+              />
+            )}
+            <Typography variant="caption" color="text.secondary">
+              Receipt ID: {item.receiptId || 'N/A'}
+            </Typography>
+            {/* If you have item.requestId, show it: */}
+            {/* <Typography variant="caption" color="text.secondary">
+              Request ID: {item.requestId || 'N/A'}
+            </Typography> */}
+            <Typography variant="body2">
+              Received: {item.quantity} {item.material.unit}
+            </Typography>
+            {item.date && (
+              <Typography variant="caption" color="text.secondary">
+                {format(new Date(item.date), 'dd MMM yyyy')}
+              </Typography>
+            )}
+          </Box>
+        </Grid>
+      ))}
+    </Grid>
+  );
+
+  // ===============================
+  // RENDER
+  // ===============================
+
   return (
     <Paper
       sx={{
@@ -371,21 +410,23 @@ const ReceivedTab = ({ projectId }) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        borderRadius: 4,
+        borderRadius: 2,
         overflow: 'hidden',
         position: 'relative',
+        boxShadow: 0,                  // remove shadow
+        backgroundColor: 'transparent' // remove default paper color
       }}
+      elevation={0}
     >
-      {/* Header Section */}
+      {/* Top Bar: Search, Sorting, Refresh, etc. */}
       <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={6} md={4}>
-            {/* Search Field */}
             <TextField
               fullWidth
               variant="outlined"
               size="small"
-              placeholder="Search receipts or materials..."
+              placeholder="Search materials..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               InputProps={{
@@ -393,10 +434,8 @@ const ReceivedTab = ({ projectId }) => {
               }}
             />
           </Grid>
-
           <Grid item xs={12} sm={6} md={8}>
             <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
-              {/* Example sorting dropdown (by date) */}
               <Select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
@@ -406,15 +445,12 @@ const ReceivedTab = ({ projectId }) => {
                 <MenuItem value="newest">Newest First</MenuItem>
                 <MenuItem value="oldest">Oldest First</MenuItem>
               </Select>
-
-              {/* Refresh Button */}
-              <Tooltip title="Refresh">
+              <Tooltip title="Refresh Data">
                 <IconButton onClick={fetchData}>
                   <Refresh />
                 </IconButton>
               </Tooltip>
-
-              {/* "New Receipt" button for desktop */}
+              {/* Show 'New Receipt' button if not on mobile */}
               {!isMobile && (
                 <Button
                   variant="outlined"
@@ -431,8 +467,7 @@ const ReceivedTab = ({ projectId }) => {
       </Box>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, position: 'relative', overflow: 'auto' }}>
-        {/* Loading State */}
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
         {loading ? (
           <Box sx={{ p: 2 }}>
             {[...Array(4)].map((_, i) => (
@@ -455,102 +490,53 @@ const ReceivedTab = ({ projectId }) => {
           </Box>
         ) : (
           <Box sx={{ p: 2 }}>
-            {/* Approved Materials Section */}
+            {/* Approved Materials (not yet received) */}
             <Typography variant="h6" sx={{ mb: 1 }}>
               Approved Materials
             </Typography>
-            {isMobile ? (
+            {filteredApprovedMaterials.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                No approved materials available.
+              </Typography>
+            ) : isMobile ? (
               <MobileApprovedCardView />
             ) : (
-              <Grid container spacing={2}>
-                {filteredApprovedMaterials.length === 0 ? (
-                  <Grid item xs={12}>
-                    <Typography variant="body2" color="text.secondary">
-                      No approved materials available.
-                    </Typography>
-                  </Grid>
-                ) : (
-                  filteredApprovedMaterials.map((material) => (
-                    <Grid item xs={12} md={6} lg={4} key={material._id}>
-                      <Paper
-                        sx={{
-                          p: 2,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between',
-                          height: '100%',
-                          backgroundColor: 'grey.50',
-                          borderRadius: 2,
-                        }}
-                        elevation={2}
-                      >
-                        <Typography variant="subtitle1" fontWeight="600">
-                          {material.material?.name || 'Unnamed Material'}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Approved Qty: {material.approvedQuantity}{' '}
-                          {material.material.unit}
-                        </Typography>
-                        <Box sx={{ mt: 2, textAlign: 'right' }}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => handleAddReceipt(material)}
-                          >
-                            Add to Receipt
-                          </Button>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  ))
-                )}
-              </Grid>
+              <DesktopApprovedView />
             )}
 
             <Divider sx={{ my: 3 }} />
 
-            {/* Receipts List Section */}
+            {/* Flattened Received Items */}
             <Typography variant="h6" sx={{ mb: 1 }}>
-              Receipts
+              Received Materials
             </Typography>
-            {filteredReceipts.length === 0 ? (
+            {filteredReceivedItems.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                No receipts found.
+                No received materials found.
               </Typography>
             ) : isMobile ? (
-              <MobileReceiptsCardView />
+              <MobileReceivedCardView />
             ) : (
-              <DataGrid
-                getRowId={(row) => row._id}
-                rows={filteredReceipts}
-                columns={receiptColumns}
-                pageSizeOptions={[5, 10, 25]}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                density="comfortable"
-                loading={loading}
-                slots={{
-                  loadingOverlay: LinearProgress,
-                  noRowsOverlay: () => (
-                    <Box sx={{ p: 4, textAlign: 'center' }}>
-                      <Typography color="text.secondary">
-                        No receipts found.
-                      </Typography>
-                    </Box>
-                  ),
-                }}
-                sx={{
-                  minHeight: 400,
-                  '& .MuiDataGrid-cell:focus': { outline: 'none' },
-                  '& .MuiDataGrid-columnHeader:focus': { outline: 'none' },
-                }}
-              />
+              <DesktopReceivedView />
             )}
           </Box>
         )}
       </Box>
 
-
+      {/* FAB for mobile to create a new receipt */}
+      {isMobile && (
+        <Fab
+          color="primary"
+          sx={{
+            position: 'fixed',
+            bottom: theme.spacing(2),
+            right: theme.spacing(2),
+          }}
+          onClick={() => handleAddReceipt(null)}
+        >
+          <Add />
+        </Fab>
+      )}
 
       {/* Add Receipt Modal */}
       {showAddReceiptModal && (

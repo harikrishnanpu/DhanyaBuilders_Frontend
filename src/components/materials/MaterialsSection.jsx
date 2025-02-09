@@ -6,7 +6,9 @@ import {
   Paper,
   styled,
   Fab,
-  useTheme
+  useTheme,
+  useMediaQuery,
+  Container
 } from '@mui/material';
 import {
   Add,
@@ -50,6 +52,8 @@ export default function MaterialsSection({ projectId }) {
   const [activeTab, setActiveTab] = useState('inventory');
   const [openAddRequestModal, setOpenAddRequestModal] = useState(false);
   const theme = useTheme();
+  // Determine if the current viewport is small (mobile)
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -79,53 +83,64 @@ export default function MaterialsSection({ projectId }) {
   };
 
   return (
-    <Box
-    >
-      <Paper square sx={{ p: 2, borderTopRightRadius: 2, borderTopLeftRadius: 2 }}>
-        <Box >
-          <StyledTabs
-            value={activeTab}
-            onChange={handleTabChange}
-            variant="scrollable"
-            scrollButtons="auto"
-          >
-            {tabData.map((tab) => (
-              <StyledTab
-                key={tab.value}
-                value={tab.value}
-                label={tab.label}
-                icon={tab.icon}
-                iconPosition="start"
-              />
-            ))}
-          </StyledTabs>
+    <Container maxWidth="md">
+      <Box>
+        <Paper 
+          sx={{ 
+            borderTopRightRadius: 2, 
+            borderTopLeftRadius: 2,
+            // Responsive padding adjustment if needed
+            p: isMobile ? 1 : 2 
+          }}
+        >
+          <Box>
+            <StyledTabs
+              value={activeTab}
+              onChange={handleTabChange}
+              // Use scrollable tabs on mobile for a better UX, fullWidth on larger screens.
+              variant={isMobile ? "scrollable" : "fullWidth"}
+              scrollButtons="auto"
+            >
+              {tabData.map((tab) => (
+                <StyledTab
+                  key={tab.value}
+                  value={tab.value}
+                  label={tab.label}
+                  icon={tab.icon}
+                  iconPosition="start"
+                />
+              ))}
+            </StyledTabs>
+          </Box>
+        </Paper>
+
+        <Box sx={{ marginTop: 2 }}>
+          {renderTabContent()}
         </Box>
-      </Paper>
 
-      <Box sx={{ marginTop: 2}}>
-        {renderTabContent()}
+        <Fab
+          color="primary"
+          // Adjust FAB size based on screen size
+          size={isMobile ? "medium" : "large"}
+          sx={{ 
+            position: 'fixed',
+            // Adjust spacing from the screen edges responsively
+            bottom: isMobile ? theme.spacing(2) : theme.spacing(3),
+            right: isMobile ? theme.spacing(2) : theme.spacing(3)
+          }}
+          onClick={handleFabClick}
+        >
+          <Add />
+        </Fab>
+
+        {activeTab === 'requests' && (
+          <AddRequestModal
+            projectId={projectId}
+            open={openAddRequestModal}
+            onClose={() => setOpenAddRequestModal(false)}
+          />
+        )}
       </Box>
-
-      <Fab
-        color="primary"
-        sx={{ 
-          position: 'fixed',
-          bottom: theme.spacing(3),
-          right: theme.spacing(3)
-        }}
-        onClick={handleFabClick}
-      >
-        <Add />
-      </Fab>
-
-      {/* Conditionally render the AddRequestModal only if the Requests tab is active */}
-      {activeTab === 'requests' && (
-        <AddRequestModal
-          projectId={projectId}
-          open={openAddRequestModal}
-          onClose={() => setOpenAddRequestModal(false)}
-        />
-      )}
-    </Box>
+    </Container>
   );
 }

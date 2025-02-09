@@ -1,5 +1,4 @@
-// src/components/materials/modals/ApproveRequestModal.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -15,77 +14,76 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import api from 'pages/api';
 
-// Transition component to slide the modal from the bottom.
+// Slide the modal from the right side
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="right" ref={ref} {...props} />;
 });
 
-const ApproveRequestModal = ({ projectId, request, onClose, open }) => {
-  const [items, setItems] = useState(
-    request?.items?.map((item) => ({
-      ...item,
-      approvedQuantity: item.quantity,
-    })) || []
+/**
+ * ApproveRequestModal
+ * 
+ * Allows the user to set an approved quantity for a single item, 
+ * ensuring it is between 0 and the total requested quantity.
+ */
+const ApproveRequestModal = ({ projectId, item, onClose, open }) => {
+  if (!item) return null;
+
+  // Local state for the item’s approved quantity
+  const [approvedQuantity, setApprovedQuantity] = useState(
+    item.approvedQuantity ?? item.quantity
   );
   const [loading, setLoading] = useState(false);
 
-  // Handle quantity change ensuring approvedQuantity is between 0 and requested quantity.
-  const handleQuantityChange = (index, value) => {
-    const updatedItems = [...items];
-    const approvedQuantity = Math.max(
-      0,
-      Math.min(Number(value), updatedItems[index].quantity)
-    );
-    updatedItems[index].approvedQuantity = approvedQuantity;
-    setItems(updatedItems);
+  useEffect(() => {
+    // Reset when the item changes
+    setApprovedQuantity(item.approvedQuantity ?? item.quantity);
+  }, [item]);
+
+  // Ensure the approved quantity stays between 0 and item.quantity
+  const handleChange = (value) => {
+    const qty = Math.max(0, Math.min(Number(value), item.quantity));
+    setApprovedQuantity(qty);
   };
 
-  // Submit the approval data to the server.
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const approvalData = {
-        items: items.map((item) => {
-          const approvedQuantity = item.approvedQuantity;
-          const rejectedQuantity = item.quantity - approvedQuantity;
+      const rejectedQuantity = item.quantity - approvedQuantity;
+      let status = 'Partially Approved';
+      if (approvedQuantity === 0) status = 'Rejected';
+      if (approvedQuantity === item.quantity) status = 'Approved';
 
-          return {
+      const approvalData = {
+        items: [
+          {
             materialId: item.material._id,
             requestedQuantity: item.quantity,
-            approvedQuantity: approvedQuantity,
-            rejectedQuantity: rejectedQuantity,
-            status:
-              approvedQuantity === item.quantity
-                ? 'Approved'
-                : approvedQuantity === 0
-                ? 'Rejected'
-                : 'Partially Approved',
-          };
-        }),
+            approvedQuantity,
+            rejectedQuantity,
+            status,
+          },
+        ],
       };
 
+      // Call the same "approve" endpoint with updated item data
       const response = await api.put(
-        `/api/projects/project/materials/requests/${request.requestId}/approve`,
+        `/api/projects/project/materials/requests/${item.request_id}/approve`,
         approvalData
       );
+
       if (response.status === 404) {
         alert('Material request not found.');
       } else {
-        alert('Request approved successfully.');
+        alert('Approval updated successfully.');
         onClose();
       }
     } catch (error) {
-      console.error('Error approving request:', error);
-      alert('An error occurred while approving the request.');
+      console.error('Error approving item:', error);
+      alert('Failed to submit approval');
     } finally {
       setLoading(false);
     }
   };
-
-  // If there is no request, do not render anything.
-  if (!request) {
-    return null;
-  }
 
   return (
     <Dialog
@@ -95,7 +93,6 @@ const ApproveRequestModal = ({ projectId, request, onClose, open }) => {
       keepMounted
       fullWidth
       maxWidth="sm"
-      // Position the modal at the bottom with rounded top corners.
       PaperProps={{
         style: {
           margin: 0,
@@ -107,7 +104,7 @@ const ApproveRequestModal = ({ projectId, request, onClose, open }) => {
     >
       <DialogTitle sx={{ m: 0, p: 2 }}>
         <Typography variant="h6">
-          Approve Request {request.requestId}
+          Approve / Update Item: {item.material.name}
         </Typography>
         <IconButton
           aria-label="close"
@@ -122,60 +119,42 @@ const ApproveRequestModal = ({ projectId, request, onClose, open }) => {
           <CloseIcon />
         </IconButton>
       </DialogTitle>
+
       <DialogContent dividers sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption">
-            Date: {new Date(request.date).toLocaleDateString()}
+        <Typography variant="subtitle2" gutterBottom>
+          Request ID: {item.requestId}
+        </Typography>
+        <Typography variant="body2">
+          Material: {item.material.name} ({item.material.unit})
+        </Typography>
+        <Typography variant="body2">
+          Requested: {item.quantity}
+        </Typography>
+
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="caption" sx={{ mr: 1 }}>
+            Approved Quantity:
           </Typography>
-          <Typography variant="caption" sx={{ ml: 2 }}>
-            Supervisor: {request.supervisor?.name || 'N/A'}
-          </Typography>
-        </Box>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-            Items:
-          </Typography>
-          {items.map((item, index) => (
-            <Box
-              key={item.material._id}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                mb: 2,
-              }}
-            >
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="body2">
-                  {item.material.name} ({item.material.unit}) - Requested:{' '}
-                  {item.quantity}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Typography variant="caption" sx={{ mr: 1 }}>
-                  Approve:
-                </Typography>
-                <TextField
-                  type="number"
-                  inputProps={{ min: 0, max: item.quantity }}
-                  value={item.approvedQuantity}
-                  onChange={(e) => handleQuantityChange(index, e.target.value)}
-                  size="small"
-                  sx={{ width: 80 }}
-                />
-              </Box>
-            </Box>
-          ))}
+          <TextField
+            type="number"
+            size="small"
+            value={approvedQuantity}
+            onChange={(e) => handleChange(e.target.value)}
+            inputProps={{ min: 0, max: item.quantity }}
+            sx={{ width: 100 }}
+          />
         </Box>
       </DialogContent>
+
       <DialogActions sx={{ p: 2 }}>
         <Button
           onClick={handleSubmit}
-          variant="outlined"
+          variant="contained"
           color="primary"
           fullWidth
           disabled={loading}
         >
-          {loading ? 'Approving...' : 'Approve Request'}
+          {loading ? 'Submitting...' : 'Save'}
         </Button>
       </DialogActions>
     </Dialog>

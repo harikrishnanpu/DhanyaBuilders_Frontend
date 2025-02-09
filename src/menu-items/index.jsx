@@ -14,7 +14,7 @@ import projects from './projects';
 // ==============================|| MENU ITEMS ||============================== //
 
 const menuItems = {
-  items: [dashboard, apps, driver, projects, payments, stocks, reports, accounts]
+  items: [dashboard,projects, apps, driver, payments, stocks, reports, accounts]
 };
 
 export default menuItems;

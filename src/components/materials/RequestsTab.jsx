@@ -2,81 +2,53 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
   Button,
-  Chip,
   Paper,
   Stack,
-  LinearProgress,
   IconButton,
   Tooltip,
   Typography,
   Grid,
   useTheme,
   useMediaQuery,
-  Dialog,
-  DialogContent,
   TextField,
   Skeleton,
-  Tabs,
-  Tab,
-  Badge,
   Alert,
   Snackbar,
   MenuItem,
   Select,
-  Fab,
-  Collapse,
-  CardContent,
-  Avatar,
+  CardMedia,
   Card,
-  CardHeader,
-  CardActions,
-  Divider,
 } from '@mui/material';
 import {
-  Add,
   Refresh,
   Edit,
   Delete,
-  Search,
-  Comment,
   Approval,
-  ExpandMore,
-  FilterList,
-  Sort
+  Cancel,
+  Search,
+  SystemUpdateAlt,
 } from '@mui/icons-material';
-import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
-import { format } from 'date-fns';
 import { useDebounce } from 'use-debounce';
 import api from 'pages/api';
-import ApproveRequestDrawer from './modals/ApproveRequestDrawer';
-import ConfirmationDialog from './common/ConfirmationDialog';
-import RequestDetails from './modals/RequestDetails';
+import ApproveRequestModal from 'src/components/materials/modals/ApproveRequestModal';
 
-const statusColors = {
-  Pending: 'warning',
-  Approved: 'success',
-  Rejected: 'error',
-  'Partially Approved': 'info',
-  Revoked: 'default'
-};
-
-const RequestsTab = ({ projectId }) => {
+const MaterialItemsTab = ({ projectId }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
+  // State for material requests, loading/error, search & sort
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [openApproveDrawer, setOpenApproveDrawer] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch] = useDebounce(searchTerm, 500);
-  const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
-  const [expandedRequest, setExpandedRequest] = useState(null);
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
 
+  // State for showing the approval modal for a single item
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  // Fetch material requests for the project
   const fetchRequests = useCallback(async () => {
     try {
       setLoading(true);
@@ -85,267 +57,239 @@ const RequestsTab = ({ projectId }) => {
       setError(null);
     } catch (err) {
       console.error('Error fetching requests:', err);
-      setError('Failed to load requests. Please try again.');
+      setError('Failed to load materials. Please try again.');
     } finally {
       setLoading(false);
     }
   }, [projectId]);
 
   useEffect(() => {
-    if (projectId) fetchRequests();
+    if (projectId) {
+      fetchRequests();
+    }
   }, [projectId, fetchRequests]);
 
-  const handleApprove = async (request, approvedItems) => {
-    setLoading(true);
-    try {
-      const approvalData = {
-        items: approvedItems.map((item) => ({
-          materialId: item.materialId,
-          requestedQuantity: item.requestedQuantity,
-          approvedQuantity: item.approvedQuantity,
-          rejectedQuantity: item.requestedQuantity - item.approvedQuantity,
-          status: item.approvedQuantity === item.requestedQuantity ? 'Approved' :
-                  item.approvedQuantity === 0 ? 'Rejected' : 'Partially Approved'
-        }))
-      };
-
-      await api.put(`/api/projects/project/materials/requests/${request._id}/approve`, approvalData);
-      setOpenApproveDrawer(false);
-      fetchRequests();
-    } catch (error) {
-      console.error('Error approving request:', error);
-      setError('Failed to approve request. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteRequest = async (requestId) => {
-    try {
-      await api.delete(`/api/requests/${requestId}`);
-      fetchRequests();
-      setOpenDeleteDialog(false);
-    } catch (err) {
-      console.error('Error deleting request:', err);
-      setError('Failed to delete request. Please try again.');
-    }
-  };
-
-  const filteredRequests = requests
-    .filter(req => 
-      (filterStatus === 'all' || req.status === filterStatus) &&
-      (req.requestId?.toLowerCase().includes(debouncedSearch.trim().toLowerCase()) ||
-       req.items?.some(item => item.material.name.toLowerCase().includes(debouncedSearch.toLowerCase())))
-    )
-    .sort((a, b) => sortBy === 'newest' ? 
-      new Date(b.createdAt) - new Date(a.createdAt) : 
-      new Date(a.createdAt) - new Date(b.createdAt)
-    );
-
-  const handleExpand = (requestId) => {
-    setExpandedRequest(expandedRequest === requestId ? null : requestId);
-  };
-
-  const MobileCardView = () => (
-    <Box sx={{ p: 2 }}>
-      {filteredRequests.map((request) => (
-        <Card key={request._id} sx={{ mb: 2, boxShadow: 3 }}>
-          <CardHeader
-            avatar={
-              <Avatar sx={{ bgcolor: theme.palette[statusColors[request.status]]?.main }}>
-                {request.requestId.slice(0, 2)}
-              </Avatar>
-            }
-            title={
-              <Typography variant="subtitle1" fontWeight={600}>
-                {request.requestId}
-              </Typography>
-            }
-            subheader={
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Chip
-                  label={request.status}
-                  color={statusColors[request.status]}
-                  size="small"
-                  variant="outlined"
-                />
-                <Typography variant="caption" color="text.secondary">
-                  {format(new Date(request.createdAt), 'dd MMM yyyy')}
-                </Typography>
-              </Stack>
-            }
-            action={
-              <IconButton onClick={() => handleExpand(request._id)}>
-                <ExpandMore sx={{
-                  transform: expandedRequest === request._id ? 'rotate(180deg)' : 'none',
-                  transition: theme.transitions.create('transform', {
-                    duration: theme.transitions.duration.shortest,
-                  }),
-                }}/>
-              </IconButton>
-            }
-          />
-          
-          <Collapse in={expandedRequest === request._id}>
-            <CardContent>
-              <RequestDetails request={request} />
-              
-              <Divider sx={{ my: 2 }} />
-              
-              <CardActions sx={{ justifyContent: 'space-between' }}>
-                <Tooltip title="Approve Request">
-                  <IconButton 
-                    color="primary"
-                    onClick={() => {
-                      setSelectedRequest(request);
-                      setOpenApproveDrawer(true);
-                    }}
-                    disabled={request.status !== 'Pending'}
-                  >
-                    <Approval />
-                  </IconButton>
-                </Tooltip>
-                
-                <Stack direction="row" spacing={1}>
-                  <Tooltip title="Edit">
-                    <IconButton
-                      disabled={request.status !== 'Pending'}
-                      onClick={() => console.log('Edit', request._id)}
-                    >
-                      <Edit fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete">
-                    <IconButton
-                      color="error"
-                      disabled={request.status !== 'Pending'}
-                      onClick={() => {
-                        setSelectedRequest(request);
-                        setOpenDeleteDialog(true);
-                      }}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Comments">
-                    <IconButton onClick={() => console.log('Comments', request._id)}>
-                      <Comment fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
-              </CardActions>
-            </CardContent>
-          </Collapse>
-        </Card>
-      ))}
-    </Box>
+  // Flatten all material items from the requests
+  const materialItems = requests.flatMap((request) =>
+    request.items.map((item, index) => ({
+      ...item,
+      requestId: request.requestId,   // e.g. "REQ0001"
+      request_id: request._id,        // Mongo DB ObjectId
+      requestCreatedAt: request.createdAt,
+      itemIndex: index,
+    }))
   );
 
-  const columns = [
-    {
-      field: 'requestId',
-      headerName: 'Request ID',
-      flex: 1,
-      minWidth: 150,
-      renderCell: (params) => (
-        <Box>
-          <Typography variant="body2" fontWeight={500} noWrap>
-            {params.value}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {format(new Date(params.row.createdAt), 'dd MMM yy')}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      field: 'items',
-      headerName: 'Materials',
-      flex: 2,
-      minWidth: 200,
-      renderCell: (params) => (
-        <Stack spacing={0.5}>
-          {params.value.map((item, index) => (
-            <Typography key={index} variant="body2" noWrap>
-              {item.material.name} ({item.quantity} {item.material.unit})
-            </Typography>
-          ))}
-        </Stack>
-      ),
-    },
-    {
-      field: 'status',
-      headerName: 'Status',
-      flex: 1,
-      minWidth: 120,
-      renderCell: (params) => (
-        <Chip
-          label={params.value}
-          color={statusColors[params.value] || 'default'}
-          variant="outlined"
-          size="small"
-          sx={{ fontWeight: 500 }}
-        />
-      ),
-    },
-    {
-      field: 'actions',
-      type: 'actions',
-      flex: 1,
-      minWidth: 100,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<Approval />}
-          label="Approve"
-          onClick={() => {
-            setSelectedRequest(params.row);
-            setOpenApproveDrawer(true);
-          }}
-          disabled={params.row.status !== 'Pending'}
-        />,
-        <GridActionsCellItem
-          icon={<Edit />}
-          label="Edit"
-          onClick={() => console.log('Edit', params.id)}
-          disabled={params.row.status !== 'Pending'}
-        />,
-        <GridActionsCellItem
-          icon={<Delete />}
-          label="Delete"
-          onClick={() => {
-            setSelectedRequest(params.row);
-            setOpenDeleteDialog(true);
-          }}
-          disabled={params.row.status !== 'Pending'}
-        />,
-        <GridActionsCellItem
-          icon={<Comment />}
-          label="Comments"
-          onClick={() => console.log('Comments', params.id)}
-        />,
-      ],
-    },
-  ];
+  // Filter items by search term (material name or request ID)
+  const filteredItems = materialItems.filter((item) => {
+    const lower = debouncedSearch.toLowerCase();
+    return (
+      item.material.name.toLowerCase().includes(lower) ||
+      (item.requestId && item.requestId.toLowerCase().includes(lower))
+    );
+  });
+
+  // Sort items by the request's created date
+  const sortedItems = filteredItems.sort((a, b) =>
+    sortBy === 'newest'
+      ? new Date(b.requestCreatedAt) - new Date(a.requestCreatedAt)
+      : new Date(a.requestCreatedAt) - new Date(b.requestCreatedAt)
+  );
+
+  // -----------------------------
+  // Button Action Handlers
+  // -----------------------------
+
+  // Edit the requested quantity
+  const handleEditItem = async (item) => {
+    const newQuantityStr = window.prompt("Enter new requested quantity", item.quantity);
+    if (newQuantityStr === null) return; // user canceled
+    const newQuantity = parseFloat(newQuantityStr);
+    if (isNaN(newQuantity) || newQuantity <= 0) {
+      alert("Invalid quantity.");
+      return;
+    }
+    try {
+      await api.put(`/api/projects/project/materials/requests/${item.request_id}/item/${item.itemIndex}`, {
+        quantity: newQuantity,
+        approvedQuantity: 0,
+        rejectedQuantity: 0,
+        status: 'Pending',
+      });
+      fetchRequests();
+    } catch (error) {
+      console.error("Error editing item:", error);
+      setError("Error editing item.");
+    }
+  };
+
+  // Delete the item entirely from the request
+  const handleDeleteItem = async (item) => {
+    try {
+      await api.delete(`/api/projects/project/materials/requests/${item.request_id}/item/${item.itemIndex}`);
+      fetchRequests();
+    } catch (error) {
+      console.error("Error deleting item:", error);
+      setError("Error deleting item.");
+    }
+  };
+
+  // Disapprove the item (sets approved=0, rejected=quantity, status=Rejected)
+  const handleDisapproveItem = async (item) => {
+    try {
+      await api.put(`/api/projects/project/materials/requests/${item.request_id}/approve`, {
+        items: [{
+          materialId: item.material._id,
+          requestedQuantity: item.quantity,
+          approvedQuantity: 0,
+          rejectedQuantity: item.quantity,
+          status: 'Rejected',
+        }]
+      });
+      fetchRequests();
+    } catch (error) {
+      console.error('Error disapproving item:', error);
+      setError("Error disapproving item.");
+    }
+  };
+
+  // Open the approval modal for adjusting an item
+  const handleUpdateItem = (item) => {
+    setSelectedItem(item);
+    setApproveModalOpen(true);
+  };
+
+  // A compact card for each material item
+  const CardListView = () => (
+    <Grid container spacing={1} sx={{ p: 1 }}>
+      {sortedItems.map((item) => (
+        <Grid item xs={12} key={`${item.request_id}-${item.itemIndex}`}>
+          <Card
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              p: 1,
+              borderRadius: 2,
+              boxShadow: 0,
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            {/* Left side: material image or placeholder */}
+            {item.material.imageUrl ? (
+              <CardMedia
+                component="img"
+                image={item.material.imageUrl}
+                alt={item.material.name}
+                sx={{
+                  width: 70,
+                  height: 70,
+                  objectFit: 'cover',
+                  borderRadius: 1,
+                }}
+              />
+            ) : (
+              <Box
+                sx={{
+                  width: 70,
+                  height: 70,
+                  backgroundColor: 'grey.200',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 1,
+                }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  {item.material.name}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Right side: info + action buttons */}
+            <Box sx={{ flex: 1, ml: 2 }}>
+              <Typography variant="subtitle2" noWrap>
+                {item.material.name}
+              </Typography>
+              <Stack direction="row" spacing={2} alignItems="center" mt={0.5}>
+                <Typography variant="caption" color="text.secondary">
+                  Unit: {item.material.unit}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Requested: {item.quantity}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Approved: {item.approvedQuantity || 0}
+                </Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" mt={0.5}>
+                Request ID: {item.requestId}
+              </Typography>
+              <Stack direction="row" spacing={1} mt={1}>
+                {/* Approve (or partially approve) */}
+                <Tooltip title="Approve / Update Approval">
+                  <IconButton size="small" onClick={() => handleUpdateItem(item)}>
+                    <Approval fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Disapprove */}
+                <Tooltip title="Disapprove">
+                  <IconButton size="small" onClick={() => handleDisapproveItem(item)}>
+                    <Cancel fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Edit requested quantity */}
+                <Tooltip title="Edit Request">
+                  <IconButton size="small" onClick={() => handleEditItem(item)}>
+                    <Edit fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Delete */}
+                <Tooltip title="Delete Item">
+                  <IconButton size="small" onClick={() => handleDeleteItem(item)}>
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Another button to open approval modal, same as above (optional) */}
+                <Tooltip title="Update Approval">
+                  <IconButton size="small" onClick={() => handleUpdateItem(item)}>
+                    <SystemUpdateAlt fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Box>
+          </Card>
+        </Grid>
+      ))}
+    </Grid>
+  );
 
   return (
-    <Paper sx={{
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      borderRadius: 4,
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
-      {/* Header Section */}
-      <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
+    <Paper
+      sx={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: 2,
+        overflow: 'hidden',
+        position: 'relative',
+        boxShadow: 'none'
+      }}
+    >
+      {/* Header */}
+      <Box sx={{ p: 2 }}>
         <Grid container spacing={2} alignItems="center">
+          {/* Search Field */}
           <Grid item xs={12} sm={6} md={4}>
             <TextField
               fullWidth
               variant="outlined"
               size="small"
-              placeholder="Search requests..."
+              placeholder="Search materials..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               InputProps={{
@@ -354,34 +298,18 @@ const RequestsTab = ({ projectId }) => {
             />
           </Grid>
 
+          {/* Sort & Refresh */}
           <Grid item xs={12} sm={6} md={8}>
             <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
-              <Select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                size="small"
-                sx={{ minWidth: 120 }}
-                IconComponent={FilterList}
-              >
-                <MenuItem value="all">All Statuses</MenuItem>
-                {Object.keys(statusColors).map((status) => (
-                  <MenuItem key={status} value={status}>
-                    {status}
-                  </MenuItem>
-                ))}
-              </Select>
-              
               <Select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 size="small"
                 sx={{ minWidth: 120 }}
-                IconComponent={Sort}
               >
                 <MenuItem value="newest">Newest First</MenuItem>
                 <MenuItem value="oldest">Oldest First</MenuItem>
               </Select>
-
               <Tooltip title="Refresh">
                 <IconButton onClick={fetchRequests}>
                   <Refresh />
@@ -392,69 +320,40 @@ const RequestsTab = ({ projectId }) => {
         </Grid>
       </Box>
 
-      {/* Main Content Area */}
-      <Box sx={{ flex: 1, position: 'relative', overflow: 'auto' }}>
+      {/* Main Content */}
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
         {loading ? (
           <Box sx={{ p: 2 }}>
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} variant="rectangular" height={100} sx={{ mb: 2, borderRadius: 2 }} />
+            {[...Array(4)].map((_, i) => (
+              <Skeleton
+                key={i}
+                variant="rectangular"
+                height={80}
+                sx={{ mb: 1, borderRadius: 2 }}
+              />
             ))}
           </Box>
         ) : error ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
-            <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
             <Button variant="outlined" onClick={fetchRequests}>
               Retry
             </Button>
           </Box>
-        ) : isMobile ? (
-          <MobileCardView />
+        ) : sortedItems.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <Typography color="text.secondary">
+              No materials found. Create a new request to get started.
+            </Typography>
+          </Box>
         ) : (
-          <DataGrid
-            getRowId={(row) => row._id}
-            rows={filteredRequests}
-            columns={columns}
-            pageSizeOptions={[5, 10, 25]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            density="comfortable"
-            slots={{
-              loadingOverlay: LinearProgress,
-              noRowsOverlay: () => (
-                <Box sx={{ p: 4, textAlign: 'center' }}>
-                  <Typography color="text.secondary">
-                    No requests found. Create a new request to get started.
-                  </Typography>
-                </Box>
-              ),
-            }}
-            loading={loading}
-            sx={{
-              '& .MuiDataGrid-cell:focus': { outline: 'none' },
-              '& .MuiDataGrid-columnHeader:focus': { outline: 'none' },
-            }}
-          />
+          <CardListView />
         )}
       </Box>
 
-
-
-      {/* Modals and Dialogs */}
-      <ApproveRequestDrawer
-        open={openApproveDrawer}
-        request={selectedRequest}
-        onClose={() => setOpenApproveDrawer(false)}
-        onApprove={handleApprove}
-      />
-
-      <ConfirmationDialog
-        open={openDeleteDialog}
-        title="Delete Request"
-        content="Are you sure you want to delete this request? This action cannot be undone."
-        onClose={() => setOpenDeleteDialog(false)}
-        onConfirm={() => handleDeleteRequest(selectedRequest?._id)}
-      />
-
+      {/* Error Snackbar */}
       <Snackbar
         open={!!error}
         autoHideDuration={6000}
@@ -465,8 +364,22 @@ const RequestsTab = ({ projectId }) => {
           {error}
         </Alert>
       </Snackbar>
+
+      {/* Approval Modal for single-item updates */}
+      {approveModalOpen && selectedItem && (
+        <ApproveRequestModal
+          projectId={projectId}
+          item={selectedItem}
+          onClose={() => {
+            setApproveModalOpen(false);
+            setSelectedItem(null);
+            fetchRequests();
+          }}
+          open={approveModalOpen}
+        />
+      )}
     </Paper>
   );
 };
 
-export default RequestsTab;
+export default MaterialItemsTab;
