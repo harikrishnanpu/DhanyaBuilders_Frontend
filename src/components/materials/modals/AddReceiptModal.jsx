@@ -219,7 +219,7 @@ const AddReceiptModal = ({ projectId, onClose, material, open }) => {
         <DialogActions sx={{ p: 2 }}>
           <Button
             onClick={handleSubmit}
-            variant="contained"
+            variant="outlined"
             color="primary"
             disabled={loading}
             fullWidth

@@ -422,7 +422,7 @@ export default function ProjectChat({ projectId }) {
                       />
                     ) : (
                       <Button
-                        variant="contained"
+                        variant="outlined"
                         size="small"
                         onClick={() => window.open(msg.attachmentUrl, '_blank')}
                       >

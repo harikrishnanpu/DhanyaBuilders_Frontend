@@ -264,7 +264,7 @@ export default function WelcomeBanner() {
                           {announcement.buttons.map((btn, idx) => (
                             <Button
                               key={idx}
-                              variant="contained"
+                              variant="outlined"
                               color={btn.color || 'primary'}
                               href={`/${btn.url}`}
                               sx={{

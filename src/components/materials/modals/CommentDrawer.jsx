@@ -140,7 +140,7 @@ export default function CommentDrawer({ open, onClose, item, usageDocId, itemInd
           onChange={(e) => setNewComment(e.target.value)}
         />
         <Button
-          variant="contained"
+          variant="outlined"
           size="small"
           sx={{ mt: 1 }}
           onClick={handleAddComment}

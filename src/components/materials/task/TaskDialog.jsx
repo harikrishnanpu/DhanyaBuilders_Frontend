@@ -345,7 +345,7 @@ export default function TaskDialog({ open, onClose, onSubmit, editingTaskData, o
         <Button onClick={onClose} sx={{ mr: 1 }}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={handleSubmit}>
+        <Button variant="outlined" onClick={handleSubmit}>
           {editingTaskData ? 'Update' : 'Create'}
         </Button>
       </Box>

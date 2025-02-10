@@ -31,7 +31,7 @@ export default function AttachmentsSection({ attachments, onAddAttachment, onDel
       </List>
       <Box mt={2}>
         <input type="file" onChange={handleFileChange} />
-        <Button variant="contained" sx={{ ml: 1 }} onClick={handleUpload}>
+        <Button variant="outlined" sx={{ ml: 1 }} onClick={handleUpload}>
           Upload
         </Button>
       </Box>

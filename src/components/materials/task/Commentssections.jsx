@@ -37,7 +37,7 @@ export default function CommentsSection({ comments, onAddComment, onDeleteCommen
       </List>
       <Box mt={2}>
         <ReactQuill value={value} onChange={setValue} placeholder="Type @ to mention someone..." />
-        <Button variant="contained" sx={{ mt: 1 }} onClick={handlePost}>
+        <Button variant="outlined" sx={{ mt: 1 }} onClick={handlePost}>
           Post
         </Button>
       </Box>

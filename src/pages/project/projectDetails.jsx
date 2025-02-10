@@ -309,7 +309,7 @@ function CommentsDrawer({ open, onClose, projectId, progressItem, showSnackbar, 
             onChange={(e) => setNewCommentText(e.target.value)}
           />
           <Button
-            variant="contained"
+            variant="outlined"
             fullWidth
             sx={{ mt: 1 }}
             onClick={handleAddComment}
@@ -576,7 +576,7 @@ const handleDeleteProgressItem = async (progressId) => {
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
           Main Progress Items
         </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenAddDrawer}>
+        <Button variant="outlined" startIcon={<AddIcon />} onClick={handleOpenAddDrawer}>
           Add Main Progress
         </Button>
       </Box>
@@ -719,7 +719,7 @@ const handleDeleteProgressItem = async (progressId) => {
             <Button onClick={toggleDrawer(false)} color="inherit" sx={{ mr: 1 }}>
               Cancel
             </Button>
-            <Button onClick={handleSaveProgressItem} variant="contained">
+            <Button onClick={handleSaveProgressItem} variant="outlined">
               Save
             </Button>
           </Box>
@@ -762,7 +762,7 @@ const handleDeleteProgressItem = async (progressId) => {
             <Button onClick={() => setOpenSubDrawer(false)} color="inherit" sx={{ mr: 1 }}>
               Cancel
             </Button>
-            <Button onClick={handleSaveSubProgress} variant="contained">
+            <Button onClick={handleSaveSubProgress} variant="outlined">
               Save
             </Button>
           </Box>

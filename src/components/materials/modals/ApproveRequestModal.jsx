@@ -149,7 +149,7 @@ const ApproveRequestModal = ({ projectId, item, onClose, open }) => {
       <DialogActions sx={{ p: 2 }}>
         <Button
           onClick={handleSubmit}
-          variant="contained"
+          variant="outlined"
           color="primary"
           fullWidth
           disabled={loading}

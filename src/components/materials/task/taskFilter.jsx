@@ -70,7 +70,7 @@ export default function TaskFilters({ onFilterChange }) {
           ))}
         </Select>
       </FormControl>
-      <Button variant="contained" onClick={handleApplyFilters}>
+      <Button variant="outlined" onClick={handleApplyFilters}>
         Apply
       </Button>
     </Box>

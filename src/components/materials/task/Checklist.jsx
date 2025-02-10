@@ -112,7 +112,7 @@ export default function ChecklistSection({ taskId, checklist, setChecklist }) {
           value={newItemText}
           onChange={(e) => setNewItemText(e.target.value)}
         />
-        <Button variant="contained" onClick={handleAddItem}>
+        <Button variant="outlined" onClick={handleAddItem}>
           Add
         </Button>
       </Box>
